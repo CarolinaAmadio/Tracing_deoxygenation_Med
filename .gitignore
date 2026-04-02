@@ -9,6 +9,8 @@
 
 # direcotries
 *PTEM_PSAL
-*DOXY_FIGS
-*DOXY_60*
-*density_plot*
+1_clim_analysis/*DOXY_FIGS
+1_clim_analysis/*DOXY_60*
+1_clim_analysis/*density_plot*
+0_clim_calc/yearly_clim/FILES_AND_FIGS/
+FILES_AND_FIGS/
