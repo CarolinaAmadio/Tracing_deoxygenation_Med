@@ -64,7 +64,9 @@ for ISUB in SUBS:
 
 #COLUMNS=['wmo','Cycle','DRIFT_CODE','offset', 'filename','time','value_at600m','value_at_rho_sw','value_at_rho_gsw' , 'value_rho_gsw_ins', 'value_rho_levant']
 
-COLUMNS=['wmo','Cycle','DRIFT_CODE','offset','time','value_at600m','value_at_rho_sw','value_at_rho_gsw' , 'value_rho_gsw_ins', 'value_rho_levant']
+#COLUMNS=['wmo','Cycle','DRIFT_CODE','offset','time','value_at600m','value_at_rho_sw','value_at_rho_gsw' , 'value_rho_gsw_ins', 'value_rho_levant']
+
+COLUMNS=['wmo','Cycle','DRIFT_CODE','offset','time','value_at600m','value_at_rho_sw','value_at_rho_gsw']
 
 def get_density_600m(NAME_BASIN):
     df = pd.read_csv("/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med/1_clim_analysis/density_600m.csv", index_col=0)
@@ -111,9 +113,12 @@ def collect_data_from_profiles(Profilelist, DOXY_convert=False):
         #if (int(p._my_float.wmo)) ==6903065:
         #        if (int(p._my_float.cycle)) == int(17):
         #            sys.exit()
+        
+        # convert doxy in coriolis with sw
         pres, profile, qc = p.read(FLOATVARS[varmod])
         if DOXY_convert:
              profile  = convert_oxygen(p,pres, profile)
+
         if len (profile) <5: continue
         if len(pres)<5: continue
         if pres.max()< 600: continue
@@ -164,8 +169,29 @@ def collect_data_from_profiles(Profilelist, DOXY_convert=False):
             rho_gsw     =   gsw.rho(sa, ct, pres_temp) 
             density_interp = np.interp(pres, pres_temp, rho_gsw)
             mask_rho = (density_interp >=  rho_600m_per_sub- stdev) & (density_interp <= rho_600m_per_sub + stdev)
-            if np.any(mask_rho): value_rho_gsw = profile[mask_rho].mean()
+            if np.any(mask_rho): 
+                value_rho_gsw = profile[mask_rho].mean()
             
+            else:
+                # --- case 2: fallback → nearest point
+                idx = np.argmin(np.abs(density_interp - rho_600m_per_sub))
+
+                # --- check distance threshold (±0.01 kg/m3)
+                if np.abs(density_interp[idx] - rho_600m_per_sub) <= 0.1:
+
+                    # --- interpolation around that point (better than raw nearest)
+                    # sort by density first
+                    idx_sort = np.argsort(density_interp)
+                    rho_sorted = density_interp[idx_sort]
+                    prof_sorted = profile[idx_sort]
+
+                    value_rho_gsw = np.interp(rho_600m_per_sub, rho_sorted, prof_sorted)
+
+                else:
+                    # --- too far → reject
+                    value_rho_gsw = np.nan
+
+
             # density gsw t insitu : value_rho_gsw_ins
             rho_gsw_ins =   gsw.rho_t_exact(sa, temp, pres_temp)
             density_interp_ins = np.interp(pres, pres_temp, rho_gsw_ins)
@@ -196,9 +222,9 @@ def collect_data_from_profiles(Profilelist, DOXY_convert=False):
         'time': p.time.strftime('%Y%m%d'),
         'value_at600m': value,
         'value_at_rho_sw': value_rho_sw,
-        'value_at_rho_gsw': value_rho_gsw,
-        'value_rho_gsw_ins': value_rho_gsw_ins,
-        'value_rho_levant': value_rho_levant})
+        'value_at_rho_gsw': value_rho_gsw})
+        #'value_rho_gsw_ins': value_rho_gsw_ins,
+        #'value_rho_levant': value_rho_levant})
 
 
     df_local = pd.DataFrame(rows, columns=COLUMNS)
@@ -207,7 +233,7 @@ def collect_data_from_profiles(Profilelist, DOXY_convert=False):
     return df_local
 
 for ISUB in SUBS:
-    if ISUB.name != 'alb': continue
+    #if ISUB.name != 'alb': continue
     print('_____________ '+ str(ISUB)  +' _____________')
     _super_Profilelist = superfloat.FloatSelector(FLOATVARS[varmod],TI, ISUB)
     _cor_Profilelist    = bio_float.FloatSelector(FLOATVARS[varmod],TI, ISUB)
@@ -229,58 +255,50 @@ for ISUB in SUBS:
     df_super.to_csv(OUTDIR +'/'+ ISUB.name+ '_superfloat_oxy_at600m.csv')
     
     # plot dnesity at ca 600m 
-    ax = df_super.plot(x='time',y=df_super.columns[-7:-2],style='o',markersize=10,alpha=0.5,title='Superfloat')
+    ax = df_super.plot(x='time',y=df_super.columns[-5:-2],style='o',markersize=10,alpha=0.5,title='Superfloat')
     fig = ax.get_figure()
     fig.savefig(OUTDIR +'/'+ ISUB.name + "_superfloat.png", bbox_inches='tight')
 
-    ax = df_cor.plot(x='time',y=df_cor.columns[-7:-2],style='o', markersize=10,alpha=0.3, title='Coriolis')
+    ax = df_cor.plot(x='time',y=df_cor.columns[-5:-2],style='o', markersize=10,alpha=0.5, title='Coriolis')
     fig = ax.get_figure()
     fig.savefig(OUTDIR +'/'+  ISUB.name + "_coriolis.png", bbox_inches='tight')
 
     #plt.show()
     #sys.exit()
-    #cutoff = pd.Timestamp('2025-10-31')
-
-    #df_super_recent = df_super[df_super['time'] > cutoff]
-    #df_cor_recent   = df_cor[df_cor['time'] > cutoff]
+    #cutoff = pd.Timestamp('2022-10-31')
+    #df_super = df_super[df_super['time'] > cutoff]
+    #df_cor  = df_cor[df_cor['time'] > cutoff]
     
-    sys.exit()
     if (not df_super.empty) and (not df_cor.empty):
-
-        df_mean_super = df_super.groupby('time')['value_at600m'].mean().reset_index()
-        df_mean_cor   = df_cor.groupby('time')['value_at600m'].mean().reset_index()
-
         # media globale (per titolo)
-        mean_super = df_mean_super['value_at600m'].mean()
-        mean_cor   = df_mean_cor['value_at600m'].mean()
+        mean_super = df_super['value_at600m'].mean()
+        mean_cor   = df_cor['value_at600m'].mean()
 
         plt.figure(figsize=(10,6))
 
         # superfloat → verde scuro, bordo nero
         plt.plot(
-            df_mean_super['time'],
-            df_mean_super['value_at600m'],
+            df_super['time'],
+            df_super['value_at600m'],
             linestyle='None',
             marker='o',
             markersize=12,
             markerfacecolor='red',
             markeredgecolor='black',
             markeredgewidth=1.5,
-            label=f'Superfloat (mean={mean_super:.2f})'
-        )
+            label=f'Superfloat (mean={mean_super:.2f})')
 
         # coriolis → verde chiaro, bordo bianco
         plt.plot(
-            df_mean_cor['time'],
-            df_mean_cor['value_at600m'],
+            df_cor['time'],
+            df_cor['value_at600m'],
             linestyle='None',
             marker='o',
             markersize=6,
             markerfacecolor='black',
             markeredgecolor='gray',
             markeredgewidth=1.2,
-            label=f'Coriolis (mean={mean_cor:.2f})'
-        )
+            label=f'Coriolis (mean={mean_cor:.2f})')
 
         plt.xlabel('Time')
         plt.ylabel('Oxygen at 600 m')
@@ -288,13 +306,12 @@ for ISUB in SUBS:
 
         plt.title(
             ISUB.name +
-            f' Mean Oxygen at 600 m\nSuperfloat={mean_super:.2f} | Coriolis={mean_cor:.2f}'
-        )
+            f' Mean Oxygen at 600 m\nSuperfloat={mean_super:.2f} | Coriolis={mean_cor:.2f}')
 
         plt.legend()
         plt.grid()
         plt.tight_layout()
-
+        plt.show()
         plt.savefig(OUTDIR + '/' + ISUB.name + '_comparison_oxy_at600m.png')
         plt.close()
         
