@@ -101,9 +101,7 @@ def convert_oxygen(p,doxypres,doxyprofile):
         return
            
 
-def get_rho_layer(mask_rho,profile,density_interp,rho_600m_per_sub): """
-
-"""
+def get_rho_layer(mask_rho,profile,density_interp,rho_600m_per_sub): """calculate value at depth"""
     if np.any(mask_rho): 
        value_rho_gsw = profile[mask_rho].mean()
     else:
