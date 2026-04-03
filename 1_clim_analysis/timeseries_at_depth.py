@@ -40,7 +40,6 @@ from bitsea.basins.region import Region, Rectangle
 sys.path.append(os.path.abspath(".."))
 from utils.basins_CA_new_bitsea import cross_Med_basins
 
-
 OUTDIR     = "DOXY_FIGS/"
 os.makedirs(OUTDIR, exist_ok=True)
 varmod     = "O2o"#args.variable
@@ -63,9 +62,7 @@ for ISUB in SUBS:
     list_basin.append(ISUB.name)
 
 #COLUMNS=['wmo','Cycle','DRIFT_CODE','offset', 'filename','time','value_at600m','value_at_rho_sw','value_at_rho_gsw' , 'value_rho_gsw_ins', 'value_rho_levant']
-
 #COLUMNS=['wmo','Cycle','DRIFT_CODE','offset','time','value_at600m','value_at_rho_sw','value_at_rho_gsw' , 'value_rho_gsw_ins', 'value_rho_levant']
-
 COLUMNS=['wmo','Cycle','DRIFT_CODE','offset','time','value_at600m','value_at_rho_sw','value_at_rho_gsw']
 
 def get_density_600m(NAME_BASIN):
@@ -80,11 +77,8 @@ def get_density_600m(NAME_BASIN):
         return None
 
 def convert_oxygen(p,doxypres,doxyprofile):
-    '''
-    from micromol/Kg to  mmol/m3
-    '''
+    ''' from micromol/Kg to  mmol/m3'''
     if doxypres.size == 0: return doxyprofile
-    
     Pres  , temp, _ = p.read("TEMP")
     Pres_s, sali, _ = p.read("PSAL")
 
@@ -146,10 +140,8 @@ def collect_data_from_profiles(Profilelist, DOXY_convert=False):
 
         if len(pres_temp) < 5 : 
             pres_temp, temp, _ = p.read("TEMP", read_adjusted=False)
-            #print('car')
         if len(pres_sali) < 5 : 
             pres_sali, sali, _ = p.read("PSAL", read_adjusted=False)
-            #print('olin')
 
         pos = Rectangle(np.float64(p.lon ) , np.float64( p.lon) , np.float64(p.lat) , np.float64(p.lat))
         NAME_BASIN , BORDER_BASIN = cross_Med_basins(pos)
@@ -157,8 +149,6 @@ def collect_data_from_profiles(Profilelist, DOXY_convert=False):
         rho_600m_per_sub , stdev= get_density_600m(NAME_BASIN)
         stdev = stdev*2 
 
-        #print( rho_600m_per_sub ,stdev) 
-        #sys.exit()
         if (len(temp) > 0 and len(sali) > 0 and len(pres_temp) > 0 and len(pres_sali) >0
             and not np.isnan(p.lat) and not np.isnan(p.lon)):
             if len(pres_sali) != (len(pres_temp)):
