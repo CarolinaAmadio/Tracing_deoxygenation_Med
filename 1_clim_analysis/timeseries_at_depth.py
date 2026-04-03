@@ -62,8 +62,8 @@ for ISUB in SUBS:
     list_basin.append(ISUB.name)
 
 #COLUMNS=['wmo','Cycle','DRIFT_CODE','offset', 'filename','time','value_at600m','value_at_rho_sw','value_at_rho_gsw' , 'value_rho_gsw_ins', 'value_rho_levant']
-#COLUMNS=['wmo','Cycle','DRIFT_CODE','offset','time','value_at600m','value_at_rho_sw','value_at_rho_gsw' , 'value_rho_gsw_ins', 'value_rho_levant']
-COLUMNS=['wmo','Cycle','DRIFT_CODE','offset','time','value_at600m','value_at_rho_sw','value_at_rho_gsw']
+COLUMNS=['wmo','Cycle','DRIFT_CODE','offset','time','value_at600m','value_at_rho_sw','value_at_rho_gsw' , 'value_rho_gsw_ins', 'value_rho_levant']
+#COLUMNS=['wmo','Cycle','DRIFT_CODE','offset','time','value_at600m','value_at_rho_sw','value_at_rho_gsw']
 
 def get_density_600m(NAME_BASIN):
     df = pd.read_csv("/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med/1_clim_analysis/density_600m.csv", index_col=0)
@@ -100,6 +100,21 @@ def convert_oxygen(p,doxypres,doxyprofile):
     else:
         return
            
+
+def get_rho_layer(mask_rho,profile,density_interp,rho_600m_per_sub): """
+
+"""
+    if np.any(mask_rho): 
+       value_rho_gsw = profile[mask_rho].mean()
+    else:
+       idx = np.argmin(np.abs(density_interp - rho_600m_per_sub))
+          if np.abs(density_interp[idx] - rho_600m_per_sub) <= 0.1:
+             idx_sort = np.argsort(density_interp)
+             rho_sorted = density_interp[idx_sort]
+             prof_sorted = profile[idx_sort]
+             value_rho_gsw = np.interp(rho_600m_per_sub, rho_sorted, prof_sorted)
+          else:
+             value_rho_gsw = np.nan
 
 def collect_data_from_profiles(Profilelist, DOXY_convert=False):
     rows = []
@@ -153,46 +168,27 @@ def collect_data_from_profiles(Profilelist, DOXY_convert=False):
             and not np.isnan(p.lat) and not np.isnan(p.lon)):
             if len(pres_sali) != (len(pres_temp)):
                 sali = np.interp(pres_temp,pres_sali , sali)
+            
             # density with gsw TEOS10 : value_at_rho_gsw
             sa = gsw.SA_from_SP(sali, pres_temp, p.lon, p.lat)
             ct = gsw.CT_from_t(sa, temp, pres_temp)
             rho_gsw     =   gsw.rho(sa, ct, pres_temp) 
             density_interp = np.interp(pres, pres_temp, rho_gsw)
             mask_rho = (density_interp >=  rho_600m_per_sub- stdev) & (density_interp <= rho_600m_per_sub + stdev)
-            if np.any(mask_rho): 
-                value_rho_gsw = profile[mask_rho].mean()
-            
-            else:
-                # --- case 2: fallback → nearest point
-                idx = np.argmin(np.abs(density_interp - rho_600m_per_sub))
-
-                # --- check distance threshold (±0.01 kg/m3)
-                if np.abs(density_interp[idx] - rho_600m_per_sub) <= 0.1:
-
-                    # --- interpolation around that point (better than raw nearest)
-                    # sort by density first
-                    idx_sort = np.argsort(density_interp)
-                    rho_sorted = density_interp[idx_sort]
-                    prof_sorted = profile[idx_sort]
-
-                    value_rho_gsw = np.interp(rho_600m_per_sub, rho_sorted, prof_sorted)
-
-                else:
-                    # --- too far → reject
-                    value_rho_gsw = np.nan
-
+            value_rho_gsw = get_rho_layer(mask_rho,profile,density_interp,rho_600m_per_sub)
 
             # density gsw t insitu : value_rho_gsw_ins
             rho_gsw_ins =   gsw.rho_t_exact(sa, temp, pres_temp)
             density_interp_ins = np.interp(pres, pres_temp, rho_gsw_ins)
             mask_rho_ins= (density_interp_ins  >= rho_600m_per_sub- stdev) & (density_interp_ins <=rho_600m_per_sub + stdev)
-            if np.any(mask_rho_ins): value_rho_gsw_ins = profile[mask_rho_ins].mean()
-
+            value_rho_gsw_ins = get_rho_layer(mask_rho_ins,profile,density_interp_ins,rho_600m_per_sub)
+                
             # density with sw:  value_at_rho_sw
             rho_sw = sw.dens(sali,temp,pres_temp)
             rho_int_sw = np.interp(pres,pres_temp,rho_sw) 
             mask_rho = (rho_int_sw >= rho_600m_per_sub - stdev) & (rho_int_sw <= rho_600m_per_sub + stdev)
-            if np.any(mask_rho): value_rho_sw = profile[mask_rho].mean()
+            value_rho_sw = get_rho_layer(mask_rho,profile,rho_int_sw,rho_600m_per_sub)
+             
 
             # --- densità a lat/lon fisso Levantino ---
             lon_levant, lat_levant = 34.0, 34.0  # esempio coordinate Levantino
@@ -201,7 +197,7 @@ def collect_data_from_profiles(Profilelist, DOXY_convert=False):
             rho_levant = gsw.rho(sa_levant, ct_levant, pres_temp)
             interp_rho_levant = np.interp(pres, pres_temp, rho_levant)  # densità a 600 m
             mask_rho = (interp_rho_levant >= rho_600m_per_sub - stdev) & ( interp_rho_levant <= rho_600m_per_sub + stdev)
-            if np.any(mask_rho): value_rho_levant = profile[mask_rho].mean()
+            value_rho_levant = get_rho_layer(mask_rho,profile,interp_rho_levant,rho_600m_per_sub)
 
         rows.append({
         'wmo': p._my_float.wmo,
@@ -213,8 +209,8 @@ def collect_data_from_profiles(Profilelist, DOXY_convert=False):
         'value_at600m': value,
         'value_at_rho_sw': value_rho_sw,
         'value_at_rho_gsw': value_rho_gsw})
-        #'value_rho_gsw_ins': value_rho_gsw_ins,
-        #'value_rho_levant': value_rho_levant})
+        'value_rho_gsw_ins': value_rho_gsw_ins,
+        'value_rho_levant': value_rho_levant})
 
 
     df_local = pd.DataFrame(rows, columns=COLUMNS)
