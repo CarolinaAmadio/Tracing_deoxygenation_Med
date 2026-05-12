@@ -1,23 +1,55 @@
+# SLURM
+slurm*.out
+slurm*.err
 
-*slurm*
+# Old files/directories
 *old*
 *OLD*
 
+# Dependencies / external
+*bit.sea*
 
-# Dependencies
-*bit.sea* 
-*ONLINE 
-*SLURM
+# Ignore  directories
+
+#00_build_SUPERFLOAT
+ONLINE/
+00_build_SUPERFLOAT/ONLINE/
+00_build_SUPERFLOAT/TEST_00_bitsea_to_test
+
+#01_calc_clim
+*FILES_AND_FIGS*
+
+# 02_analyze_clim
+*DOXY_FIGS*
+*bck*
+*plots_density*
 
 
-# direcotries
-*PTEM_PSAL
-1_clim_analysis/*DOXY_FIGS
-1_clim_analysis/*DOXY_60*
-1_clim_analysis/*density_plot*
+
+
+# file format # 
+*csv
+*nc
+*png
+
+# SLURM folders
+*SLURM*
+
+# Python cache
+__pycache__/
+*.pyc
+
+# bitsea
+*bit.sea*
+
+# Generated directories/files
+PTEM_PSAL/
+
+
+1_clim_analysis/*DOXY_FIGS/
+1_clim_analysis/*DOXY_60*/
+1_clim_analysis/*density_plot*/
 0_clim_calc/yearly_clim/FILES_AND_FIGS/
 FILES_AND_FIGS/
-1_clim_analysis/bck
-*__pycache__*
-5_validation/plots*
-
+1_clim_analysis/bck/
+5_validation/plots*/
