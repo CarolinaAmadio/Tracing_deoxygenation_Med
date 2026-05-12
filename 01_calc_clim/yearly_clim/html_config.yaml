@@ -1,0 +1,26 @@
+variabili:
+  - pH
+  - N1p
+  - DIC
+  - N5s
+  - ALK
+  - N3n
+  - O2o
+
+ordine_sottobacini:
+  - alb
+  - swm1
+  - swm2
+  - nwm
+  - tyr1
+  - tyr2
+  - adr1
+  - adr2
+  - aeg
+  - ion1
+  - ion2
+  - ion3
+  - lev1
+  - lev2
+  - lev3
+  - lev4
