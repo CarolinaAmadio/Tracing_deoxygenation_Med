@@ -1,8 +1,11 @@
 
 *slurm*
+*old*
+*OLD*
+
 
 # Dependencies
-*bit.sea  
+*bit.sea* 
 *ONLINE 
 *SLURM
 
@@ -14,3 +17,7 @@
 1_clim_analysis/*density_plot*
 0_clim_calc/yearly_clim/FILES_AND_FIGS/
 FILES_AND_FIGS/
+1_clim_analysis/bck
+*__pycache__*
+5_validation/plots*
+
