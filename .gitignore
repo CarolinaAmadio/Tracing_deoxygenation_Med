@@ -24,10 +24,10 @@ ONLINE/
 02_analyze_clim/*/
 
 # 05_validation
-05_validation/CANYON_MED/*/
-05_validation/MEDBGC_INS/*/
-05_validation/STAT_PROFILES/*/
-05_validation/plots
+05_plot_multi_prod_timeseries/CANYON_MED/*/
+05_plot_multi_prod_timeseries/MEDBGC_INS/*/
+05_plot_multi_prod_timeseries/STAT_PROFILES/*/
+05_plot_multi_prod_timeseries/plots
 
 # file format # 
 *csv
