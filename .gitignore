@@ -17,15 +17,15 @@ ONLINE/
 00_build_SUPERFLOAT/TEST_00_bitsea_to_test
 
 #01_calc_clim
-*FILES_AND_FIGS*
+01_calc_clim//*/
 
 # 02_analyze_clim
-*DOXY_FIGS*
-*bck*
-*plots_density*
+02_analyze_clim/*/
 
-
-
+# 05_validation
+05_validation/CANYON_MED/*/
+05_validation/MEDBGC_INS/*/
+05_validation/STAT_PROFILES/*/
 
 # file format # 
 *csv
