@@ -38,6 +38,12 @@ ONLINE/
 # SLURM folders
 *SLURM*
 
+# REPO # 
+*CANYON_MED_QC*
+ONLINE/
+SUPERFLOAT/
+
+
 # Python cache
 __pycache__/
 *.pyc
