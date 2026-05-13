@@ -37,7 +37,13 @@ my_prex "python superfloat_ph.py -s $DATE_start -e $DATE_end -o $OUTDIR -f"
 my_prex "python superfloat_bbp700.py -s $DATE_start -e $DATE_end -o $OUTDIR -f"
 my_prex "python superfloat_kd490.py -s $DATE_start -e $DATE_end -o $OUTDIR -f"
 my_prex "python dump_index.py -i $OUTDIR -o ${OUTDIR}/Float_Index.txt -t superfloat" 
-exit 0
+
+OUTDIR_rej=$OUTDIR/float_stat_rejection.csv
+
+python rejection_summary_by_basin.py -i $OUTDIR -o $OUTDIR_rej
+
+
+
 
 
 exit 0
