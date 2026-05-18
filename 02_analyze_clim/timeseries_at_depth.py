@@ -32,7 +32,6 @@ from bitsea.basins.basin import ComposedBasin
 from bitsea.commons.mask import Mask
 import sys
 import xarray as xr
-import seawater as sw
 import gsw
 import matplotlib.pyplot as plt
 import os 
@@ -40,9 +39,11 @@ from bitsea.basins.region import Region, Rectangle
 sys.path.append(os.path.abspath(".."))
 from utils.basins_CA_new_bitsea import cross_Med_basins
 
-OUTDIR     = "DOXY_FIGS/"
+OUTDIR     = "plots/"
 os.makedirs(OUTDIR, exist_ok=True)
 varmod     = "O2o"#args.variable
+plot_cols  = ['value_at600m', 'value_at_rho_gsw']
+
 
 # INIT
 TheMask=Mask.from_file("/g100_work/OGS_test2528/camadio/Neccton_hindcast_ALL_SIMULATIONS_archieve/Neccton_hindcast1999_2022/wrkdir/MASKS/meshmask.nc")
@@ -61,13 +62,11 @@ list_basin =[]
 for ISUB in SUBS:
     list_basin.append(ISUB.name)
 
-#COLUMNS=['wmo','Cycle','DRIFT_CODE','offset', 'filename','time','value_at600m','value_at_rho_sw','value_at_rho_gsw' , 'value_rho_gsw_ins', 'value_rho_levant']
-COLUMNS=['wmo','Cycle','DRIFT_CODE','offset','time','value_at600m','value_at_rho_sw','value_at_rho_gsw' , 'value_rho_gsw_ins', 'value_rho_levant']
-#COLUMNS=['wmo','Cycle','DRIFT_CODE','offset','time','value_at600m','value_at_rho_sw','value_at_rho_gsw']
+COLUMNS=['wmo','Cycle','DRIFT_CODE','offset','time','value_at600m','value_at_rho_gsw','depth_at_rho_gsw']
 
 def get_density_600m(NAME_BASIN):
-    df = pd.read_csv("/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med/1_clim_analysis/density_600m.csv", index_col=0)
-    dfstd = pd.read_csv("/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med/1_clim_analysis/density_std_600m.csv", index_col=0)
+    df = pd.read_csv("/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med/02_analyze_clim//density_600m.csv", index_col=0)
+    dfstd = pd.read_csv("/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med/02_analyze_clim//density_std_600m.csv", index_col=0)
     try:
         val  = df.loc[NAME_BASIN].values[0]
         std  = dfstd.loc[NAME_BASIN].values[0]
@@ -76,46 +75,48 @@ def get_density_600m(NAME_BASIN):
         print(f"Colonna '{NAME_BASIN}' non trovata")
         return None
 
-def convert_oxygen(p,doxypres,doxyprofile):
+def read_temp_psal(p):
+    PresT, Temp, QcT = p.read('TEMP')
+    Pres, Sali, QcS = p.read('PSAL')
+    if (Pres is None or PresT is None or Temp is None or Sali is None or len(Pres) < 5 or len(PresT) < 5):
+        PresT, Temp, QcT = p.read('TEMP', read_adjusted=False)
+        Pres, Sali, QcS = p.read('PSAL', read_adjusted=False)
+    return PresT, Temp, QcT, Pres, Sali, QcS
+
+
+def convert_oxygen(p, doxypres, doxyprofile):
     ''' from micromol/Kg to  mmol/m3'''
     if doxypres.size == 0: return doxyprofile
-    Pres  , temp, _ = p.read("TEMP")
-    Pres_s, sali, _ = p.read("PSAL")
-
-    if len(Pres) < 5 :
-        Pres, temp, _   = p.read("TEMP", read_adjusted=False)
-    if len(Pres_s) < 5 :
-        Pres_s, sali, _ = p.read("PSAL", read_adjusted=False)
-
-    if (len(temp) > 0 and len(sali) > 0 and len(Pres) >0 and len(Pres_s) > 0 ):
-        if len(Pres) == len(Pres_s) and len(Pres) > 5 :
-           density = sw.dens(sali,temp,Pres)
-           density_on_zdoxy = np.interp(doxypres,Pres,density)
-           return doxyprofile * density_on_zdoxy/1000.
-        else:
-           sali = np.interp(Pres,Pres_s,sali)
-           density = sw.dens(sali,temp,Pres)
-           density_on_zdoxy = np.interp(doxypres,Pres,density)
-           return doxyprofile * density_on_zdoxy/1000.
-    else:
-        return
+    PresT, temp, Qc, Pres, sali, QcS = read_temp_psal(p)
+    if len(temp) != len(sali):
+        temp = np.interp(Pres, PresT, temp)
+    SA = gsw.SA_from_SP(sali, Pres, p.lon, p.lat)
+    density = gsw.rho(SA, gsw.CT_from_t(SA, temp, Pres), Pres)
+    density_on_zdoxy = np.interp(doxypres, Pres, density)
+    return doxyprofile * density_on_zdoxy / 1000.
            
 
-def get_rho_layer(mask_rho,profile,density_interp,rho_600m_per_sub): 
-    '''calculate value at depth'''
+def get_rho_layer(mask_rho, profile, pres, density_interp, rho_600m_per_sub, lat): 
+    '''calculate value and depth at density'''
     
     if np.any(mask_rho): 
        value_rho = profile[mask_rho].mean()
+       pres_rho = pres[mask_rho].mean()
     else: 
        idx = np.argmin(np.abs(density_interp - rho_600m_per_sub))
        if np.abs(density_interp[idx] - rho_600m_per_sub) <= 0.1:
             idx_sort = np.argsort(density_interp)
             rho_sorted = density_interp[idx_sort]
+            pres_sorted = pres[idx_sort]
             prof_sorted = profile[idx_sort]
             value_rho = np.interp(rho_600m_per_sub, rho_sorted, prof_sorted)
+            pres_rho = np.interp(rho_600m_per_sub, rho_sorted, pres_sorted)
        else:
-            value_rho = np.nan
-    return value_rho
+            return np.nan, np.nan
+
+    depth_rho = -gsw.z_from_p(pres_rho, lat)
+    return value_rho, depth_rho
+
 
 def collect_data_from_profiles(Profilelist, DOXY_convert=False):
     rows = []
@@ -146,18 +147,10 @@ def collect_data_from_profiles(Profilelist, DOXY_convert=False):
         if np.any(mask):value = profile[mask].mean()
         else: value = np.nan 
 
-        value_rho_sw = np.nan
         value_rho_gsw = np.nan
-        value_rho_gsw_ins = np.nan
-        value_rho_levant = np.nan
+        depth_at_rho_gsw = np.nan
 
-        pres_temp, temp, _ = p.read("TEMP")
-        pres_sali, sali, _ = p.read("PSAL")
-
-        if len(pres_temp) < 5 : 
-            pres_temp, temp, _ = p.read("TEMP", read_adjusted=False)
-        if len(pres_sali) < 5 : 
-            pres_sali, sali, _ = p.read("PSAL", read_adjusted=False)
+        pres_temp, temp, _, pres_sali, sali, _ = read_temp_psal(p)
 
         pos = Rectangle(np.float64(p.lon ) , np.float64( p.lon) , np.float64(p.lat) , np.float64(p.lat))
         NAME_BASIN , BORDER_BASIN = cross_Med_basins(pos)
@@ -173,32 +166,17 @@ def collect_data_from_profiles(Profilelist, DOXY_convert=False):
             # density with gsw TEOS10 : value_at_rho_gsw
             sa = gsw.SA_from_SP(sali, pres_temp, p.lon, p.lat)
             ct = gsw.CT_from_t(sa, temp, pres_temp)
-            rho_gsw     =   gsw.rho(sa, ct, pres_temp) 
+            rho_gsw = gsw.rho(sa, ct, pres_temp)
             density_interp = np.interp(pres, pres_temp, rho_gsw)
-            mask_rho = (density_interp >=  rho_600m_per_sub- stdev) & (density_interp <= rho_600m_per_sub + stdev)
-            value_rho_gsw = get_rho_layer(mask_rho,profile,density_interp,rho_600m_per_sub)
-
-            # density gsw t insitu : value_rho_gsw_ins
-            rho_gsw_ins =   gsw.rho_t_exact(sa, temp, pres_temp)
-            density_interp_ins = np.interp(pres, pres_temp, rho_gsw_ins)
-            mask_rho_ins= (density_interp_ins  >= rho_600m_per_sub- stdev) & (density_interp_ins <=rho_600m_per_sub + stdev)
-            value_rho_gsw_ins = get_rho_layer(mask_rho_ins,profile,density_interp_ins,rho_600m_per_sub)
-                
-            # density with sw:  value_at_rho_sw
-            rho_sw = sw.dens(sali,temp,pres_temp)
-            rho_int_sw = np.interp(pres,pres_temp,rho_sw) 
-            mask_rho = (rho_int_sw >= rho_600m_per_sub - stdev) & (rho_int_sw <= rho_600m_per_sub + stdev)
-            value_rho_sw = get_rho_layer(mask_rho,profile,rho_int_sw,rho_600m_per_sub)
-             
-
-            # --- densità a lat/lon fisso Levantino ---
-            lon_levant, lat_levant = 34.0, 34.0  # esempio coordinate Levantino
-            sa_levant = gsw.SA_from_SP(sali, pres_temp, lon_levant, lat_levant)
-            ct_levant = gsw.CT_from_t(sa_levant, temp, pres_temp)
-            rho_levant = gsw.rho(sa_levant, ct_levant, pres_temp)
-            interp_rho_levant = np.interp(pres, pres_temp, rho_levant)  # densità a 600 m
-            mask_rho = (interp_rho_levant >= rho_600m_per_sub - stdev) & ( interp_rho_levant <= rho_600m_per_sub + stdev)
-            value_rho_levant = get_rho_layer(mask_rho,profile,interp_rho_levant,rho_600m_per_sub)
+            mask_rho = (density_interp >= rho_600m_per_sub - stdev) & (density_interp <= rho_600m_per_sub + stdev)
+            value_rho_gsw, depth_at_rho_gsw = get_rho_layer(
+                mask_rho,
+                profile,
+                pres,
+                density_interp,
+                rho_600m_per_sub,
+                p.lat
+            )
 
         rows.append({
         'wmo': p._my_float.wmo,
@@ -208,10 +186,8 @@ def collect_data_from_profiles(Profilelist, DOXY_convert=False):
         #'filename': p._my_float.filename,
         'time': p.time.strftime('%Y%m%d'),
         'value_at600m': value,
-        'value_at_rho_sw': value_rho_sw,
         'value_at_rho_gsw': value_rho_gsw,
-        'value_rho_gsw_ins': value_rho_gsw_ins,
-        'value_rho_levant': value_rho_levant})
+        'depth_at_rho_gsw': depth_at_rho_gsw})
 
 
     df_local = pd.DataFrame(rows, columns=COLUMNS)
@@ -220,7 +196,7 @@ def collect_data_from_profiles(Profilelist, DOXY_convert=False):
     return df_local
 
 for ISUB in SUBS:
-    if ISUB.name != 'alb': continue
+    #if ISUB.name != 'alb': continue
     print('_____________ '+ str(ISUB)  +' _____________')
     _super_Profilelist = superfloat.FloatSelector(FLOATVARS[varmod],TI, ISUB)
     _cor_Profilelist    = bio_float.FloatSelector(FLOATVARS[varmod],TI, ISUB)
@@ -230,6 +206,10 @@ for ISUB in SUBS:
     df_super = df_super.sort_values('time') 
     df_cor = collect_data_from_profiles(_cor_Profilelist, DOXY_convert=True)
     df_cor = df_cor.sort_values('time')
+
+    if df_super.empty or df_cor.empty:
+        print(f"Skipping {ISUB.name}: df_super.empty={df_super.empty}, df_cor.empty={df_cor.empty}")
+        continue
 
     df_super['time'] = pd.to_datetime(df_super['time'])
     df_super['year'] = df_super['time'].dt.year
@@ -241,41 +221,112 @@ for ISUB in SUBS:
     df_cor.to_csv(OUTDIR +'/'+ ISUB.name+ '_coriolis_oxy_at600m.csv')
     df_super.to_csv(OUTDIR +'/'+ ISUB.name+ '_superfloat_oxy_at600m.csv')
 
-    df_intersect = pd.merge(
-        df_super[['wmo','Cycle']],
-        df_cor[['wmo','Cycle']],
-        on=['wmo','Cycle'],
-        how='inner'
-    ).drop_duplicates().reset_index(drop=True)
+    df_intersect = pd.merge(df_super[['wmo','Cycle']],
+        df_cor[['wmo','Cycle']],on=['wmo','Cycle'],
+        how='inner').drop_duplicates().reset_index(drop=True)
     df_intersect = df_intersect.rename(columns={'Cycle': 'cycle'})[['wmo','cycle']]
     df_intersect.to_csv(OUTDIR +'/'+ ISUB.name+ '_intersect_wmo_cycle.csv', index=False)
 
     # plot dnesity at ca 600m
 
-    ax = df_super.plot(x='time',y=df_super.columns[-7:-5],style='o',markersize=10, markerfacecolor='none',markeredgewidth=1,alpha=0.5,title='Superfloat')
+    fig, ax = plt.subplots(figsize=(10,6))
+    ax.plot(
+        df_super['time'],
+        df_super['value_at600m'],
+        linestyle='None',
+        marker='o',
+        markersize=12,
+        markerfacecolor='dodgerblue',
+        markeredgecolor='black',
+        alpha=0.3,
+        label='value_at600m'
+    )
+    ax.plot(
+        df_super['time'],
+        df_super['value_at_rho_gsw'],
+        linestyle='None',
+        marker='o',
+        markersize=6,
+        markerfacecolor='gray',
+        markeredgecolor='black',
+        alpha=1.0,
+        label='value_at_rho_gsw'
+    )
+    ax.set_title(f'{ISUB.name} Superfloat')
+    ax.set_xlabel('Time')
+    ax.set_ylabel('Oxygen at 600 m')
+    ax.grid(True)
+    ax.tick_params(axis='x', rotation=45)
     ax.set_ylim(155, 230)
-    fig = ax.get_figure()
+
     # Converti il tempo in numerico
     x = df_super['time']
     x_num = np.arange(len(x))  # semplice indice numerico
 
     # Loop sulle colonne che stai plottando
-    for col in df_super.columns[-7:-5]:
+    for col in plot_cols:
         y = df_super[col].values
 
         # Fit lineare
         coeffs = np.polyfit(x_num, y, 1)
         trend = np.polyval(coeffs, x_num)
 
-        # Plot della linea di trend
-        ax.plot(x, trend, linewidth=2)
+        ax.plot(x, trend, color='k')
 
-    fig = ax.get_figure()
+    ax2 = ax.twinx()
+    ax2.plot(
+        df_super['time'],
+        df_super['depth_at_rho_gsw'],
+        #color='k',
+        #linewidth=1,
+        #linestyle=':',
+        color='goldenrod',
+        linewidth=1.8,
+        linestyle='--',
+        label='Depth at rho gsw'
+    )
+    ax2.set_ylabel('Depth at rho gsw (m)')
+    ax2.invert_yaxis()
+    ax2.grid(False)
+
+    lines, labels = ax.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax.legend(lines + lines2, labels + labels2, loc='best')
+
+    fig.tight_layout()
     fig.savefig(OUTDIR +'/'+ ISUB.name + "_superfloat.png", bbox_inches='tight')
 
-    ax = df_cor.plot(x='time',y=df_cor.columns[-7:-5],style='o', markersize=10,markerfacecolor='none',markeredgewidth=1, alpha=0.5, title='Coriolis')
-    fig = ax.get_figure()
+    fig, ax = plt.subplots(figsize=(10,6))
+    ax.plot(
+        df_cor['time'],
+        df_cor['value_at600m'],
+        linestyle='None',
+        marker='o',
+        markersize=12,
+        markerfacecolor='dodgerblue',
+        markeredgecolor='black',
+        alpha=0.3,
+        label='value_at600m'
+    )
+    ax.plot(
+        df_cor['time'],
+        df_cor['value_at_rho_gsw'],
+        linestyle='None',
+        marker='o',
+        markersize=6,
+        markerfacecolor='gray',
+        markeredgecolor='black',
+        alpha=1.0,
+        label='value_at_rho_gsw'
+    )
+    ax.set_title(f'{ISUB.name} Coriolis')
+    ax.set_xlabel('Time')
+    ax.set_ylabel('Oxygen at 600 m')
+    ax.grid(True)
+    ax.tick_params(axis='x', rotation=45)
     ax.set_ylim(155, 230)
+
+    fig.tight_layout()
     fig.savefig(OUTDIR +'/'+  ISUB.name + "_coriolis.png", bbox_inches='tight')
 
     #plt.show()
@@ -326,6 +377,5 @@ for ISUB in SUBS:
         plt.legend()
         plt.grid()
         plt.tight_layout()
-        plt.show()
         plt.savefig(OUTDIR + '/' + ISUB.name + '_comparison_oxy_at600m.png')
         plt.close()
