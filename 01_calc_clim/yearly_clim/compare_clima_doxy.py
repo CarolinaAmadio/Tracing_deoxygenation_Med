@@ -88,7 +88,7 @@ for isub,sub in enumerate(SUBLIST):
         #plt.plot(vs_std[isub,:] - vs_std[isub,:], z_lev, color='tab:red', linestyle=':')
 
         # Coriolis biofloat
-        plt.plot(vc_avg[isub,:], z_lev, color='k', linewidth=2, label='Corilis_ogs')
+        plt.plot(vc_avg[isub,:], z_lev, color='k', linewidth=2, label='Coriolis_ogs')
         #plt.plot(vc_std[isub,:] + vc_std[isub,:], z_lev, color='silver', linestyle=':')
         #plt.plot(vc_std[isub,:] - vc_std[isub,:], z_lev, color='silver', linestyle=':')
 

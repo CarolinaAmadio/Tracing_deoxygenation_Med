@@ -8,18 +8,18 @@
 #SBATCH --partition=g100_meteo_prod
 #SBATCH --qos=qos_meteo
 
-cd $SLURM_SUBMIT_DIR
+#cd $SLURM_SUBMIT_DIR
 . /g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med/utils/profile.inc 
 
 echo "Job started at: $(date)"
 
 source /g100_work/OGS23_PRACE_IT/COPERNICUS/py_env_3.9.18_new/bin/activate
-export PYTHONPATH=/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med/00_new_SUPERFLOAT/bit.sea/src:$PYTHONPATH
+export PYTHONPATH=/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med/bit.sea/src:$PYTHONPATH
 export ONLINE_REPO=/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med/ONLINE/
 
-OUTDIR=/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med/0_clim_calc/yearly_clim/
+OUTDIR=/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med/01_calc_clim/yearly_clim/
 mkdir -p $OUTDIR
-OUT=$OUTDIR/FILES_AND_FIGS/ 
+OUT=$OUTDIR/plots/
 
 mkdir -p $OUT/ $OUT/CLIMA_FLOAT/ $OUT/SUPERFLOAT/ $OUT/CORIOLIS/
 

@@ -64,18 +64,28 @@ def main():
         rej_sub = df_rej[normalize_string_series(df_rej['basin']) == basin_key]
         acc_sub = df_acc[normalize_string_series(df_acc['basin']) == basin_key]
 
+        rt = count_reason(df_reasons, basin_name, 'RT')
+        saturation = count_reason(df_reasons, basin_name, 'SaturationTest')
+        presnone = count_reason(df_reasons, basin_name, 'PresNone')
+        clim_qc = int(len(rej_sub))
+        accepted = int(len(acc_sub))
+        tot_rejected = rt + saturation + presnone + clim_qc
+        total = tot_rejected + accepted
+        pct_rejected = round(tot_rejected / total * 100, 1) if total > 0 else float('nan')
         row = {
             'basin': basin_name,
-            'RT': count_reason(df_reasons, basin_name, 'RT'),
-            'Saturation': count_reason(df_reasons, basin_name, 'SaturationTest'),
-            'PresNone': count_reason(df_reasons, basin_name, 'PresNone'),
-            'Clim_QC': int(len(rej_sub)),
-            'Accepted': int(len(acc_sub)),
+            'RT': rt,
+            'Saturation': saturation,
+            'PresNone': presnone,
+            'Clim_QC': clim_qc,
+            'tot_rejected': tot_rejected,
+            'Accepted': accepted,
+            '%rejected': pct_rejected,
         }
         summary.append(row)
 
     out_df = pd.DataFrame(summary).set_index('basin')
-    os.makedirs(os.path.dirname(out_csv), exist_ok=True)
+    #os.makedirs(os.path.dirname(out_csv), exist_ok=True)
     out_df.to_csv(out_csv, index=True)
 
     print(f'Saved summary to: {out_csv}')
