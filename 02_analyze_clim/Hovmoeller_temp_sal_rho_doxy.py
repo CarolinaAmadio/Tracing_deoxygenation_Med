@@ -266,17 +266,23 @@ def save_hovmoeller(times, temp_mat, sal_mat, rho_mat, oxy_mat, basin_name, sour
 
     panels = [
         (temp_mat, temp_clim, CMAP_TEMP, 'Temperature', '°C',      None, None),
-        (sal_mat,  sal_clim,  CMAP_SAL,  'Salinity',    'psu',      30.0, 38.0),
+        (sal_mat,  sal_clim,  CMAP_SAL,  'Salinity',    'psu',      32.0, 40.0),
         (rho_mat,  rho_clim,  CMAP_RHO,  'Density',     'kg/m³',    None, None),
         (oxy_mat,  oxy_clim,  CMAP_OXY,  'Oxygen',      'mmol/m³',  None, None),
     ]
 
-    fig, axs = plt.subplots(4, 2, figsize=(24, 16), sharey='row',
-                             gridspec_kw={'wspace': 0.05})
+    fig, axs = plt.subplots(4, 3, figsize=(24, 16), sharey='row',
+                             gridspec_kw={'width_ratios': [2, 1, 1], 'wspace': 0.02, 'hspace': 0.35})
+    # share x within col 0 (time axis) and col 1 (month axis) only
+    # col 2 (profiles) must stay independent — each variable has a different x range
+    for col in (0, 1):
+        for row in range(1, 4):
+            axs[row, col].sharex(axs[0, col])
 
     for i, (matrix, clim, cmap, title, cbar_label, vmin_fix, vmax_fix) in enumerate(panels):
         ax_l = axs[i, 0]
         ax_r = axs[i, 1]
+        ax_p = axs[i, 2]
 
         vmin = vmin_fix if vmin_fix is not None else np.nanmin(matrix)
         vmax = vmax_fix if vmax_fix is not None else np.nanmax(matrix)
@@ -290,13 +296,33 @@ def save_hovmoeller(times, temp_mat, sal_mat, rho_mat, oxy_mat, basin_name, sour
         fig.colorbar(pcm, ax=ax_l, label=cbar_label)
         ax_l.grid(True, linestyle=':', alpha=0.4)
 
-        # ---- right panel: monthly climatology ----
+        # ---- centre panel: monthly climatology Hovmoeller ----
         pcm_r = ax_r.pcolormesh(month_x, DEPTHS, clim, shading='auto',
                                 cmap=cmap, norm=norm)
         fig.colorbar(pcm_r, ax=ax_r, label=cbar_label)
         ax_r.grid(True, linestyle=':', alpha=0.4)
         ax_r.set_xticks(month_x)
         ax_r.set_xticklabels(month_labels, fontsize=8)
+
+        # ---- right panel: 12 monthly + 1 annual mean profiles ----
+        # hawaii: 0=deep blue (Jan) → 1=yellow-orange (Jul), Dec stays near blue
+        for m in range(12):
+            color_val = 0.5 * (1.0 - np.cos(2.0 * np.pi * m / 12.0))
+            profile = clim[:, m]
+            valid_p = np.isfinite(profile)
+            if valid_p.any():
+                ax_p.plot(profile[valid_p], DEPTHS[valid_p],
+                          #color=cmc.cm.hawaii(color_val), linewidth=0.9, alpha=0.85,
+                          color=cmc.cm.managua_r(color_val), linewidth=0.9,
+                          label=month_labels[m])
+        ann_profile = np.nanmean(clim, axis=1)
+        valid_a = np.isfinite(ann_profile)
+        if valid_a.any():
+            ax_p.plot(ann_profile[valid_a], DEPTHS[valid_a],
+                      color='k', linewidth=2.0, label='annual mean')
+        ax_p.set_xlim(vmin, vmax)
+        ax_p.set_xlabel(cbar_label)
+        ax_p.grid(True, linestyle=':', alpha=0.4)
 
         # ---- overlay lines ----
         if i == 1:  # salinity
@@ -307,7 +333,12 @@ def save_hovmoeller(times, temp_mat, sal_mat, rho_mat, oxy_mat, basin_name, sour
             ax_r.plot(month_x, sal_max_clim, color='k', linewidth=1.5,
                       linestyle=':', label='depth of sal max')
             ax_r.legend(loc='upper right', fontsize=8)
-            ax_r.set_title(f'{basin_name} — {title} (monthly climatology)')
+            ax_r.set_title(f'{basin_name} — {title} (climatology)')
+            ann_sal_max = np.nanmean(sal_max_depth)
+            if np.isfinite(ann_sal_max):
+                ax_p.axhline(ann_sal_max, color='k', linewidth=1.5, linestyle=':')
+            ax_p.legend(loc='lower right', fontsize=6, ncol=2)
+            ax_p.set_title(f'{basin_name} — {title} (profiles)')
 
         elif i == 2 and rho_600m is not None:  # density
             ax_l.plot(times, iso_depth, color='k', linewidth=1.5,
@@ -320,7 +351,12 @@ def save_hovmoeller(times, temp_mat, sal_mat, rho_mat, oxy_mat, basin_name, sour
             ax_r.plot(month_x, iso_depth_clim, color='k', linewidth=1.5,
                       linestyle=':', label=f'ρ₆₀₀={rho_600m:.3f} kg/m³')
             ax_r.legend(loc='upper right', fontsize=8)
-            ax_r.set_title(f'{basin_name} — {title} (monthly climatology)')
+            ax_r.set_title(f'{basin_name} — {title} (climatology)')
+            ann_iso = np.nanmean(iso_depth)
+            if np.isfinite(ann_iso):
+                ax_p.axhline(ann_iso, color='k', linewidth=1.5, linestyle=':')
+            ax_p.legend(loc='lower right', fontsize=6, ncol=2)
+            ax_p.set_title(f'{basin_name} — {title} (profiles)')
 
         elif i == 3:  # oxygen
             if np.any(np.isfinite(sal_max_depth)):
@@ -338,16 +374,32 @@ def save_hovmoeller(times, temp_mat, sal_mat, rho_mat, oxy_mat, basin_name, sour
                 ax_r.plot(month_x, iso_depth_clim, color='k', linewidth=1.5,
                           linestyle=':', label=f'ρ₆₀₀={rho_600m:.3f} kg/m³')
             ax_r.legend(loc='upper right', fontsize=8)
-            ax_r.set_title(f'{basin_name} — {title} (monthly climatology)')
+            ax_r.set_title(f'{basin_name} — {title} (climatology)')
+            ann_sal_max = np.nanmean(sal_max_depth)
+            if np.isfinite(ann_sal_max):
+                ax_p.axhline(ann_sal_max, color='lightgray', linewidth=1.5, linestyle=':')
+            if iso_depth is not None:
+                ann_iso = np.nanmean(iso_depth)
+                if np.isfinite(ann_iso):
+                    ax_p.axhline(ann_iso, color='k', linewidth=1.5, linestyle=':')
+            ax_p.legend(loc='lower right', fontsize=6, ncol=2)
+            ax_p.set_title(f'{basin_name} — {title} (profiles)')
 
         else:  # temperature
             ax_l.set_title(f'{basin_name} {source_name.capitalize()} — {title}')
-            ax_r.set_title(f'{basin_name} — {title} (monthly climatology)')
+            ax_r.set_title(f'{basin_name} — {title} (climatology)')
+            ax_p.legend(loc='lower right', fontsize=6, ncol=2)
+            ax_p.set_title(f'{basin_name} — {title} (profiles)')
 
     axs[-1, 0].set_xlabel('Time')
     axs[-1, 1].set_xlabel('Month')
-    fig.autofmt_xdate()
-    fig.tight_layout(w_pad=0.5)
+    axs[-1, 2].set_xlabel('')
+    # rotate date labels only on the time axis (col 0, last row)
+    plt.setp(axs[-1, 0].xaxis.get_majorticklabels(), rotation=30, ha='right')
+    # restore x-tick labels on all profile panels (col 2) — autofmt_xdate would hide them
+    for row in range(4):
+        axs[row, 2].tick_params(axis='x', labelbottom=True)
+    fig.tight_layout(h_pad=1.2, w_pad=0.2)
 
     outfile = os.path.join(OUTDIR, f'{basin_name}_{source_name}_hovmoeller.png')
     fig.savefig(outfile, bbox_inches='tight')
