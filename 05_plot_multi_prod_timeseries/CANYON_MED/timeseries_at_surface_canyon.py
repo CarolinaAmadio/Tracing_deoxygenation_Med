@@ -11,7 +11,7 @@ from bitsea.basins.basin import Basin, ComposedBasin
 from bitsea.commons.time_interval import TimeInterval
 from bitsea.instruments import float_canyonmed as bio_float
 
-VALID_VARS = ["AT", "PH_IN_SITU_TOTAL", "DIC", "DOXY"]
+VALID_VARS = ["AT", "PH_IN_SITU_TOTAL", "DIC", "DOXY", "NITRATE"]
 
 
 def get_elementary_basin_names():
@@ -48,7 +48,20 @@ def extract_variable_timeseries_for_basin(basin, time_interval, variable, min_de
     rows = []
 
     for p in profiles:
-        sourcedata = "insitu" if variable == "DOXY" else "canyon_med"
+        if variable == "DOXY":
+            sourcedata = "insitu"
+            source_type = "I"
+        elif variable == "NITRATE":
+            if p._my_float.has_insitu("NITRATE"):
+                sourcedata = "insitu"
+                source_type = "I"
+            else:
+                sourcedata = "canyon_med"
+                source_type = "C"
+        else:
+            sourcedata = "canyon_med"
+            source_type = None
+
         try:
             pres, values, _ = p.read(variable, sourcedata=sourcedata)
         except (AssertionError, KeyError, ValueError) as exc:
@@ -76,6 +89,7 @@ def extract_variable_timeseries_for_basin(basin, time_interval, variable, min_de
                 "profile_name": p.name(),
                 "wmo": p.name(),
                 "cycle": p._my_float.cycle,
+                "source_type": source_type,
             }
         )
 
@@ -91,6 +105,7 @@ def extract_variable_timeseries_for_basin(basin, time_interval, variable, min_de
                 "profile_name",
                 "wmo",
                 "cycle",
+                "source_type",
             ]
         )
 
@@ -126,7 +141,7 @@ def parse_args():
 def main():
     args = parse_args()
 
-    TI = TimeInterval("19950101", "20250101", "%Y%m%d")
+    TI = TimeInterval("19950101", "20280101", "%Y%m%d")
     SUB = get_elementary_basins()
     depth_tag = f"{int(args.min_depth)}-{int(args.max_depth)}m"
     output_dir = Path(__file__).resolve().parent / depth_tag
@@ -159,6 +174,7 @@ def main():
             "profile_name",
             "wmo",
             "cycle",
+            "source_type",
         ]
     )
     output_file = output_dir / f"BGC_ARGO_{args.variable}_timeseries_all_basins_{depth_tag}.csv"
