@@ -4,8 +4,9 @@ import numpy as np
 import pandas as pd
 import glob
 import os
-import seawater as sw
+import gsw
 import argparse
+import argopy
 
 parser = argparse.ArgumentParser(description="Calculation of monthly climatologies per sub basin")
 parser.add_argument("--indir", "-i", required=True,  help="Directory input")
@@ -77,8 +78,19 @@ for file in FILELIST:
         #  Canyon MED prediction
         # -----------------------------
         new_ds   = new_ds.argo.profile2point()
-        # from mmol/m3 ---> ummol/kg
-        density = sw.dens(new_ds['PSAL'], new_ds['TEMP'], new_ds['PRES'])
+        # from mmol/m3 ---> ummol/kg using TEOS-10 via gsw
+        SA = gsw.SA_from_SP(
+            new_ds["PSAL"].values,
+            new_ds["PRES"].values,
+            new_ds["LONGITUDE"].values,
+            new_ds["LATITUDE"].values,
+        )
+        CT = gsw.CT_from_t(
+            SA,
+            new_ds["TEMP"].values,
+            new_ds["PRES"].values,
+        )
+        density = gsw.rho(SA, CT, new_ds["PRES"].values)
         new_ds["DOXY"] = new_ds["DOXY"] * 1000.0 / density
         NNvar    = new_ds.argo.canyon_med.predict()
         
