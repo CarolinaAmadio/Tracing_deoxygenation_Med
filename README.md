@@ -8,7 +8,7 @@ Repository for tracing deoxygenation processes in the Mediterranean Sea.
 - `01_calc_clim/`
 - `02_analyze_clim/`
 - `03_calc_canyon/`
-- `04_`
+- `04_doxy_vs_bathy`
 - `05_plot_multi_prod_timeseries/`
 - `utils/`
 
@@ -25,7 +25,7 @@ The repository follows a sequential workflow:
         ↓
 03_calc_canyon
         ↓
-04_
+04_doxy_vs_bathy
         ↓
 05_plot_multi_prod_timeseries
 ```
