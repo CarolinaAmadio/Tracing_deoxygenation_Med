@@ -131,6 +131,9 @@ def make_hovmoeller(profile_list, doxy_convert=False):
     oxy_mat = []
 
     for p in profile_list:
+        #if p._my_float.cycle == 337 and p._my_float.wmo=='6903266':
+        #import sys
+        #sys.exit('carol')
         pres_t, temp_prof, pres_s, sal_prof = read_temp_psal(p)
         if pres_t is None or temp_prof is None or pres_s is None or sal_prof is None:
             continue
@@ -154,6 +157,8 @@ def make_hovmoeller(profile_list, doxy_convert=False):
         pres = pres[valid]
         temp_prof = temp_prof[valid]
         sal_prof = sal_prof[valid]
+        if np.nanmin(sal_prof) < 32.0:
+          raise RuntimeError(f'Salinity below 32 psu detected in float {p._my_float.wmo}, cycle {p._my_float.cycle}')
 
         order = np.argsort(pres)
         pres = pres[order]
