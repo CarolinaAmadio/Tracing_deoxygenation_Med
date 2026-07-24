@@ -2,6 +2,10 @@ import argparse
 
 def argument():
     parser = argparse.ArgumentParser(description = '''
+    Compute tseries of oxy in Superfloat and Coriolis profiles 
+    Mediterranean sub-basin. For every profile, extracts the oxygen
+concentration around 600 m and at the isopycnal corresponding to the mean
+basin density at 600 m.
     ''', formatter_class=argparse.RawTextHelpFormatter)
 
     parser.add_argument(   '--outdir','-o',
@@ -236,9 +240,9 @@ for ISUB in SUBS:
         linestyle='None',
         marker='o',
         markersize=12,
-        markerfacecolor='dodgerblue',
+        markerfacecolor='red',
         markeredgecolor='black',
-        alpha=0.3,
+        alpha=1,
         label='value_at600m'
     )
     ax.plot(
@@ -281,8 +285,8 @@ for ISUB in SUBS:
         #linewidth=1,
         #linestyle=':',
         color='goldenrod',
-        linewidth=1.8,
-        linestyle='--',
+        linewidth=0.8,
+        linestyle=':',
         label='Depth at rho gsw'
     )
     ax2.set_ylabel('Depth at rho gsw (m)')
@@ -303,9 +307,9 @@ for ISUB in SUBS:
         linestyle='None',
         marker='o',
         markersize=12,
-        markerfacecolor='dodgerblue',
+        markerfacecolor='red',
         markeredgecolor='black',
-        alpha=0.3,
+        alpha=1,
         label='value_at600m'
     )
     ax.plot(
@@ -325,6 +329,9 @@ for ISUB in SUBS:
     ax.grid(True)
     ax.tick_params(axis='x', rotation=45)
     ax.set_ylim(155, 230)
+ 
+    lines, labels = ax.get_legend_handles_labels()
+    ax.legend(lines , labels ,loc='best')
 
     fig.tight_layout()
     fig.savefig(OUTDIR +'/'+  ISUB.name + "_coriolis.png", bbox_inches='tight')
