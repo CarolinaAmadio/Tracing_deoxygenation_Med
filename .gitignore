@@ -5,6 +5,8 @@ slurm*.err
 # Old files/directories
 *old*
 *OLD*
+*bck*
+*tmp*
 
 # Dependencies / external
 *bit.sea*
