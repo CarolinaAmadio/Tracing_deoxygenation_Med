@@ -1,0 +1,412 @@
+import argparse
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import pandas as pd
+from matplotlib.dates import AutoDateLocator, DateFormatter
+
+from bitsea.basins import V2
+from bitsea.basins.basin import Basin, ComposedBasin
+
+ALIASES = {
+    "ALK": {"bgc": "AT", "med": "ALK", "stat": "ALK"},
+    "AT": {"bgc": "AT", "med": "ALK", "stat": "ALK"},
+    "DIC": {"bgc": "DIC", "med": "DIC_merged", "stat": "DIC"},
+    "PH_IN_SITU_TOTAL": {"bgc": "PH_IN_SITU_TOTAL", "med": "pH_ins_merged", "stat": "pH"},
+    "PH": {"bgc": "PH_IN_SITU_TOTAL", "med": "pH_ins_merged", "stat": "pH"},
+    "DOXY": {"bgc": "DOXY", "med": "O2o", "stat": "O2o"},
+    "O2O": {"bgc": None, "med": "O2o", "stat": "O2o"},
+    "PCO2": {"bgc": None, "med": "pCO2_rec", "stat": "pCO2"},
+    "NITRATE": {"bgc": "NITRATE", "med": "N3n", "stat": "N3n"},
+}
+
+
+def get_elementary_basin_names():
+    return [
+        "alb",
+        "swm1",
+        "swm2",
+        "nwm",
+        "tyr1",
+        "tyr2",
+        "adr1",
+        "adr2",
+        "aeg",
+        "ion1",
+        "ion2",
+        "ion3",
+        "lev1",
+        "lev2",
+        "lev3",
+        "lev4",
+    ]
+
+
+def get_elementary_basins():
+    return [getattr(V2, name) for name in get_elementary_basin_names()]
+
+
+def load_bitsea_plot_units() -> dict[str, str]:
+    xml_dir = Path(__file__).resolve().parents[1] / "bit.sea" / "src" / "bitsea" / "postproc"
+    xml_files = [
+        xml_dir / "Plotlist.xml",
+        xml_dir / "Plotlist_bio_reduced.xml",
+        xml_dir / "Plotlist_bio.xml",
+    ]
+    units = {}
+    for xml_file in xml_files:
+        if not xml_file.is_file():
+            continue
+        try:
+            root = ET.parse(xml_file).getroot()
+        except ET.ParseError:
+            continue
+        for elem in root.iter():
+            key = None
+            if elem.get("var"):
+                key = elem.get("var").strip().lower()
+            elif elem.get("name"):
+                key = elem.get("name").strip().lower()
+            if not key:
+                continue
+            unit = elem.get("units") or elem.get("plotunits")
+            if unit:
+                units.setdefault(key, unit.strip())
+    return units
+
+
+PLOT_UNITS = load_bitsea_plot_units()
+
+
+def get_ylabel(var: str) -> str:
+    unit = PLOT_UNITS.get(var.lower())
+    if unit is None and var in ALIASES:
+        alias_var = ALIASES[var].get("stat") or ALIASES[var].get("med") or ALIASES[var].get("bgc")
+        if alias_var:
+            unit = PLOT_UNITS.get(alias_var.lower())
+    return f"{var} [{unit}]" if unit else var
+
+
+def load_csv(path: Path, var: str, label: str, source_name: str, min_depth: float, max_depth: float) -> pd.DataFrame:
+    df = pd.read_csv(path)
+    if label in ["BGC_ARGO", "MEDBGC_INS"]:
+        df = df.rename(columns={source_name: var})
+        df["time"] = pd.to_datetime(df["time"], errors="coerce")
+    else:
+        mean_col = f"{source_name}_mean_{int(min_depth)}to{int(max_depth)}m"
+        if mean_col not in df.columns:
+            mean_col = f"{source_name}_mean_5m"
+        df = df.rename(columns={mean_col: var})
+        if "date" in df.columns:
+            df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    return df
+
+
+def find_csv(path: Path, pattern: str, recursive: bool = False) -> Path:
+    if recursive:
+        candidates = list(path.rglob(pattern))
+    else:
+        candidates = list(path.glob(pattern))
+    if not candidates:
+        return None
+    if len(candidates) > 1:
+        print(f"WARNING: multiple matches for {pattern} in {path}, using first: {candidates[0]}")
+    return candidates[0]
+
+
+def prepare_data(base: Path, user_var: str, min_depth: float, max_depth: float, coast: str) -> tuple[dict[str, pd.DataFrame], str]:
+    mapping = ALIASES[user_var]
+    depth_tag = f"{int(min_depth)}-{int(max_depth)}m"
+
+    paths = {}
+    if mapping["bgc"] is not None:
+        paths["BGC_ARGO"] = find_csv(
+            base / "CANYON_MED",
+            f"*_{mapping['bgc']}_*timeseries_all_basins*{depth_tag}*_ppcon_ins_cmed.csv",
+            recursive=True,
+        ) or find_csv(
+            base / "CANYON_MED",
+            f"*_{mapping['bgc']}_*timeseries_all_basins*{depth_tag}*.csv",
+            recursive=True,
+        )
+    else:
+        paths["BGC_ARGO"] = None
+
+    if mapping["med"] is not None:
+        paths["MEDBGC_INS"] = find_csv(
+            base / "MEDBGC_INS",
+            f"*{mapping['med']}*timeseries_all_basins*{depth_tag}*.csv",
+            recursive=True,
+        )
+    else:
+        paths["MEDBGC_INS"] = None
+
+    if mapping["stat"] is not None:
+        stat_dir = base.joinpath("STAT_PROFILES", f"{depth_tag}_{coast}")
+        if stat_dir.is_dir():
+            stat_paths = list(stat_dir.rglob(f"*{mapping['stat']}*layer_{int(min_depth)}_{int(max_depth)}m*.csv"))
+        else:
+            stat_paths = list(base.joinpath("STAT_PROFILES").rglob(f"*{mapping['stat']}*layer_{int(min_depth)}_{int(max_depth)}m*.csv"))
+        for path in stat_paths:
+            paths[path.parent.name] = path
+
+    if not any(paths.values()):
+        raise FileNotFoundError(f"No dataset files found for variable '{user_var}' in {base}")
+
+    data = {}
+    for label, source_path in paths.items():
+        if source_path is None:
+            print(f"WARNING: no file available for {label} and variable {user_var}")
+            continue
+        if label == "BGC_ARGO":
+            source_name = mapping["bgc"]
+        elif label == "MEDBGC_INS":
+            source_name = mapping["med"]
+        else:
+            source_name = mapping["stat"]
+        data[label] = load_csv(source_path, user_var, label, source_name, min_depth, max_depth)
+
+    return data, depth_tag
+
+
+def plot_basins(data: dict[str, pd.DataFrame], user_var: str, min_depth: float, max_depth: float, coast: str, depth_tag: str):
+    basins = [basin.name for basin in get_elementary_basins()]
+
+    plt.style.use("default")
+    default_palette = ["cyan"]
+    color_by_label = {
+        "V12C": "deeppink",
+        "QUID_V13C_DA_SAT": "yellow",
+        "V13C": "green",
+        "RA": "k",
+        "INTERIM": "k",
+        "MEDBGC_INS": "goldenrod",
+    }
+    source_type_colors = {
+        "I": "red", #"#1F1F1F",
+        "C": "#7F7F7F",
+        "P": "#B0B0B0",
+        None: color_by_label.get("BGC_ARGO", default_palette[0]),
+    }
+
+    base = Path(__file__).resolve().parent
+    outdir = base / "plots" / f"{depth_tag}_{coast}_subplot"
+    outdir.mkdir(parents=True, exist_ok=True)
+
+    ylabel = get_ylabel(user_var)
+    full_start = pd.Timestamp("1999-01-01")
+    full_end = pd.Timestamp("2024-12-31")
+    zoom_start = pd.Timestamp("2022-01-01")
+    zoom_end = pd.Timestamp("2024-12-31")
+
+    for basin in basins:
+        fig, (ax_full, ax_zoom) = plt.subplots(2, 1, figsize=(12, 10), sharex=False)
+        has_date = False
+
+        for index, (label, df) in enumerate(data.items()):
+            color = color_by_label.get(label, default_palette[index % len(default_palette)])
+            legend_label = label
+
+            if label in ["BGC_ARGO", "MEDBGC_INS"]:
+                if "basin" not in df.columns:
+                    continue
+                dfb = df[df["basin"] == basin].copy()
+                if dfb.empty or "time" not in dfb.columns:
+                    continue
+
+                dfb = dfb.sort_values("time")
+                if user_var == "NITRATE" and "source_type" in dfb.columns:
+                    for source_type in ["P", "C", "I"]:
+                        dfg = dfb[dfb["source_type"] == source_type]
+                        if dfg.empty:
+                            continue
+                        if source_type == "I":
+                            marker = "o"
+                            size = 15
+                            facecolor = "coral"
+                            edgecolor = "k"
+                            zorder = 6
+                        elif source_type == "P":
+                            marker = "."
+                            size = 15
+                            facecolor = "b"
+                            edgecolor = None
+                            zorder = 4
+                        else:
+                            marker = "."
+                            size = 15
+                            facecolor = "dodgerblue"
+                            edgecolor = None
+                            zorder = 3
+                        scatter_kwargs = {
+                            "marker": marker,
+                            "s": size,
+                            "facecolors": facecolor,
+                            "linewidths": 0.5,
+                            "alpha": 0.88,
+                            "zorder": zorder,
+                            "label": f"{legend_label} ({source_type})",
+                        }
+                        if edgecolor is not None:
+                            scatter_kwargs["edgecolors"] = edgecolor
+                        dfg_full = dfg[(dfg["time"] >= full_start) & (dfg["time"] <= full_end)]
+                        if not dfg_full.empty:
+                            ax_full.scatter(dfg_full["time"], dfg_full[user_var], **scatter_kwargs)
+                        dfg_zoom = dfg[(dfg["time"] >= zoom_start) & (dfg["time"] <= zoom_end)]
+                        if not dfg_zoom.empty:
+                            ax_zoom.scatter(dfg_zoom["time"], dfg_zoom[user_var], **scatter_kwargs)
+                else:
+                    dfb_full = dfb[(dfb["time"] >= full_start) & (dfb["time"] <= full_end)]
+                    if not dfb_full.empty:
+                        ax_full.scatter(
+                            dfb_full["time"],
+                            dfb_full[user_var],
+                            marker="+",
+                            s=15,
+                            linewidths=0.7,
+                            color=color,
+                            alpha=0.6,
+                            zorder=3,
+                            label=legend_label,
+                        )
+                    dfb_zoom = dfb[(dfb["time"] >= zoom_start) & (dfb["time"] <= zoom_end)]
+                    if not dfb_zoom.empty:
+                        ax_zoom.scatter(
+                            dfb_zoom["time"],
+                            dfb_zoom[user_var],
+                            marker="+",
+                            s=15,
+                            linewidths=0.7,
+                            color=color,
+                            alpha=0.6,
+                            zorder=3,
+                        )
+                has_date = True
+            else:
+                if df.empty:
+                    continue
+                if "coast" in df.columns and "stat" in df.columns:
+                    dff = df[(df["coast"] == coast) & (df["stat"] == "Mean")].copy()
+                else:
+                    dff = df.copy()
+                if "sub" in dff.columns:
+                    dff = dff[dff["sub"] == basin]
+                if dff.empty:
+                    continue
+
+                edge_plot_kwargs = {
+                    "color": "black",
+                    "alpha": 1,
+                    "linestyle": "-",
+                    "linewidth": 3.,
+                    "zorder": 4,
+                }
+                if "quid" in label.lower() and "v13c" in label.lower():
+                    plot_kwargs = {
+                        "color": color,
+                        "alpha": 1.0,
+                        "linestyle": ":",
+                        "linewidth": 3.,
+                        "zorder": 7,
+                        "label": legend_label,
+                    }
+                elif label in ["RA", "INTERIM"]:
+                    plot_kwargs = {
+                        "color": color,
+                        "alpha": 1.0,
+                        "linestyle": "-",
+                        "linewidth": 3.,
+                        "zorder": 5,
+                        "label": legend_label,
+                    }
+                elif "V12C" in label:
+                    plot_kwargs = {
+                        "color": color,
+                        "alpha": 0.8,
+                        "linestyle": "-",
+                        "linewidth": 3.,
+                        "zorder": 5,
+                        "label": legend_label,
+                    }
+                else:
+                    plot_kwargs = {
+                        "color": color,
+                        "alpha": 0.8,
+                        "linestyle": "-",
+                        "linewidth": 3.,
+                        "zorder": 6,
+                        "label": legend_label,
+                    }
+
+                if "date" in dff.columns:
+                    dff = dff.sort_values("date")
+                    dff_full = dff[(dff["date"] >= full_start) & (dff["date"] <= full_end)]
+                    if not dff_full.empty:
+                        ax_full.plot(dff_full["date"], dff_full[user_var], **edge_plot_kwargs)
+                        ax_full.plot(dff_full["date"], dff_full[user_var], **plot_kwargs)
+                    dff_zoom = dff[(dff["date"] >= zoom_start) & (dff["date"] <= zoom_end)]
+                    if not dff_zoom.empty:
+                        ax_zoom.plot(dff_zoom["date"], dff_zoom[user_var], **edge_plot_kwargs)
+                        ax_zoom.plot(dff_zoom["date"], dff_zoom[user_var], **plot_kwargs)
+                    has_date = True
+                else:
+                    ax_full.plot(dff["sub"], dff[user_var], **edge_plot_kwargs)
+                    ax_full.plot(dff["sub"], dff[user_var], **plot_kwargs)
+                    ax_zoom.plot(dff["sub"], dff[user_var], **edge_plot_kwargs)
+                    ax_zoom.plot(dff["sub"], dff[user_var], **plot_kwargs)
+
+        ax_full.set_title(f"{user_var} full time series for basin {basin}")
+        ax_full.set_ylabel(ylabel)
+        ax_full.legend(frameon=True, fontsize="small", ncol=2)
+        ax_full.grid(True, linestyle=":", alpha=0.5)
+
+        ax_zoom.set_title("Zoom 2022-2024")
+        ax_zoom.set_ylabel(ylabel)
+        ax_zoom.grid(True, linestyle=":", alpha=0.5)
+        if has_date:
+            for ax in (ax_full, ax_zoom):
+                ax.xaxis.set_major_locator(AutoDateLocator())
+                ax.xaxis.set_major_formatter(DateFormatter("%Y-%m-%d"))
+                ax.tick_params(axis="x", which="major", labelrotation=0, labelbottom=True, bottom=True)
+                ax.xaxis.set_ticks_position("bottom")
+
+            ax_zoom.set_xlim(zoom_start, zoom_end)
+
+        ax_zoom.set_xlabel("time")
+        fig.tight_layout()
+        fig.subplots_adjust(hspace=0.2)
+
+        out_path = outdir / f"{user_var}_timeseries_{basin}_subplot.png"
+        fig.savefig(out_path)
+        plt.close(fig)
+        print(f"Saved {out_path}")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Plot one variable series with zoom subplot from CANYON_MED, MEDBGC_INS and STAT_PROFILES."
+    )
+    parser.add_argument("--var", required=True, help="Variable to plot, e.g. ALK")
+    parser.add_argument("--min-depth", type=float, default=0.0, help="Minimum depth for the plotted layer in meters")
+    parser.add_argument("--max-depth", type=float, default=5.0, help="Maximum depth for the plotted layer in meters")
+    parser.add_argument("--coast", default="everywhere", help="Coastness filter for STAT_PROFILES, e.g. everywhere or open_sea")
+    args = parser.parse_args()
+
+    user_var = args.var.upper()
+    min_depth = args.min_depth
+    max_depth = args.max_depth
+    coast = args.coast
+
+    if user_var not in ALIASES:
+        raise ValueError(
+            f"Variable '{user_var}' not supported. Supported values: {', '.join(sorted(ALIASES.keys()))}"
+        )
+
+    base = Path(__file__).resolve().parent
+    data, depth_tag = prepare_data(base, user_var, min_depth, max_depth, coast)
+    plot_basins(data, user_var, min_depth, max_depth, coast, depth_tag)
+
+
+if __name__ == "__main__":
+    main()
