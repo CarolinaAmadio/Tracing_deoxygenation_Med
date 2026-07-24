@@ -32,6 +32,11 @@ sottobacini = cfg.get("ordine_sottobacini", [])
 image_items = []
 for sb in sottobacini:
     image_path = outdir_input / f"{var}_timeseries_{sb}.png"
+    if not image_path.exists():
+        alt_path = outdir_input / f"{var}_timeseries_{sb}_subplot.png"
+        if alt_path.exists():
+            image_path = alt_path
+
     if image_path.exists():
         image_items.append((sb, image_path))
     else:
