@@ -9,20 +9,24 @@
 #SBATCH --partition=g100_meteo_prod
 #SBATCH --qos=qos_meteo
 
-input_base=/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med/5_validation/STAT_PROFILES/
+#input_base=/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med/5_validation/STAT_PROFILES/
+input_base=/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med/05_plot_multi_prod_timeseries/STAT_PROFILES/
 #. /g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med/utils/profile.inc
 source /g100_work/OGS23_PRACE_IT/COPERNICUS/py_env_3.9.18_new/bin/activate
 
 echo "Job started at: $(date)"
 
-variables=(ALK DIC pH pCO2 O2o)
-#variables=(ALK)
-cases=(V12C V13C RA QUID_V13C_dasatfloat)
-#cases=(QUID_V13C_dasatfloat)
-coast="coast"
+variables=(ALK DIC pH pCO2 O2o N3n)
+#variables=(N3n)
+cases=(V12C V13C RA QUID_V13C_DA_SAT INTERIM HC_V13C)
+#cases=(HC_V13C INTERIM)
+coast="open_sea"
+
+#COAST_LIST=("everywhere" "open_sea" "coast")
+
 stat="Mean"
-min_depth=0
-max_depth=10
+min_depth=80
+max_depth=120
 
 depth_tag="${min_depth}-${max_depth}m_${coast}"
 

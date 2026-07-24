@@ -22,11 +22,6 @@ Build the SUPERFLOAT dataset starting from the CORIOLIS dataset.
   git clone git@github.com:inogs/bit.sea.git
   cd bit.sea
   pip install .
-- Installation example:
-  ```bash
-  git clone git@github.com:inogs/bit.sea.git
-  cd bit.sea
-  pip install .
   git checkout `origin/fix-qc-superfloat` 
 
 - Recommended branch: `origin/fix-qc-superfloat`
