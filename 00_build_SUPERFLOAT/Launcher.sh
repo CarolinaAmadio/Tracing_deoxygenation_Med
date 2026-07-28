@@ -10,29 +10,32 @@
 #SBATCH --qos=qos_meteo
 
 cd $SLURM_SUBMIT_DIR
-. /g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med/utils/profile.inc
+. /g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med_ISSUE_01/utils/profile.inc
+
+NAMEDIR=00_build_SUPERFLOAT
 
 echo "Job started at: $(date)"
 
-WORKDIR=/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med/00_new_SUPERFLOAT/
+WORKDIR=/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med_ISSUE_01/$NAMEDIR/
 
 VARNAME='O2o'   # O2o:DOX
 DATE_start=19990101
 DATE_end=20261231
 
 source /g100_work/OGS23_PRACE_IT/COPERNICUS/py_env_3.9.18_new/bin/activate
-export ONLINE_REPO=/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med/ONLINE/
+export ONLINE_REPO=/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med_ISSUE_01/ONLINE/
 
 # preparo il dataset
 export PYTHONPATH=$WORKDIR/bit.sea/src
-OUTDIR=/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med/ONLINE/SUPERFLOAT/
+OUTDIR=/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med_ISSUE_01/ONLINE/SUPERFLOAT/
 mkdir -p $OUTDIR
 
 cd $WORKDIR/bit.sea/src/bitsea/Float/ || exit 1
-#my_prex "python superfloat_chla.py -s $DATE_start -e $DATE_end -o $OUTDIR -f"
-#my_prex "python superfloat_oxygen.py  -s $DATE_start -e $DATE_end -o $OUTDIR -O $OUTDIR -f"
-#my_prex "python superfloat_nitrate.py -s $DATE_start -e $DATE_end -o $OUTDIR -f"
-#my_prex "python superfloat_par.py -s $DATE_start -e $DATE_end -o $OUTDIR -f"
+my_prex "python superfloat_chla.py -s $DATE_start -e $DATE_end -o $OUTDIR -f"
+exit 0
+my_prex "python superfloat_oxygen.py  -s $DATE_start -e $DATE_end -o $OUTDIR -O $OUTDIR -f"
+my_prex "python superfloat_nitrate.py -s $DATE_start -e $DATE_end -o $OUTDIR -f"
+my_prex "python superfloat_par.py -s $DATE_start -e $DATE_end -o $OUTDIR -f"
 my_prex "python superfloat_ph.py -s $DATE_start -e $DATE_end -o $OUTDIR -f"
 my_prex "python superfloat_bbp700.py -s $DATE_start -e $DATE_end -o $OUTDIR -f"
 my_prex "python superfloat_kd490.py -s $DATE_start -e $DATE_end -o $OUTDIR -f"
