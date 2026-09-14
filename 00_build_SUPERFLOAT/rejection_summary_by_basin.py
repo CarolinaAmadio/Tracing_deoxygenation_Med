@@ -32,9 +32,9 @@ def normalize_string_series(series):
     return series.fillna('').astype(str).str.strip().str.lower()
 
 
-def count_reason(df, basin_name, reason_key):
+def count_reason(df, basin_name, reason_key, column='reasons'):
     basin_mask = normalize_string_series(df['basin']) == basin_name.strip().lower()
-    reason_mask = normalize_string_series(df['reasons']) == reason_key.strip().lower()
+    reason_mask = normalize_string_series(df[column]) == reason_key.strip().lower()
     return int((basin_mask & reason_mask).sum())
 
 
@@ -51,7 +51,7 @@ def main():
         if not os.path.exists(path):
             raise FileNotFoundError(f'Input file not found: {path}')
 
-    df_rej = read_csv_safe(rejected_path, ['basin'])
+    df_rej = read_csv_safe(rejected_path, ['basin', 'reject_reason'])
     df_acc = read_csv_safe(accepted_path, ['basin'])
     df_reasons = read_csv_safe(reasons_path, ['basin', 'reasons'])
 
@@ -67,11 +67,14 @@ def main():
         rt = count_reason(df_reasons, basin_name, 'RT')
         saturation = count_reason(df_reasons, basin_name, 'SaturationTest')
         presnone = count_reason(df_reasons, basin_name, 'PresNone')
-        clim_qc = int(len(rej_sub))
+        clim_qc = count_reason(df_rej, basin_name, 'climatology_offset', column='reject_reason')
+        clim_qc_total = int(len(rej_sub)) # total rejected rows for this basin (all reasons)
         accepted = int(len(acc_sub))
-        tot_rejected = rt + saturation + presnone + clim_qc
+        tot_rejected = rt + saturation + presnone + clim_qc_total
+        tot_rejected_2 = saturation + clim_qc_total 
         total = tot_rejected + accepted
-        pct_rejected = round(tot_rejected / total * 100, 1) if total > 0 else float('nan')
+        pct_rej_all = round(tot_rejected / total * 100, 1) if total > 0 else float('nan')
+        pct_rejected = round(tot_rejected_2 / total * 100, 1) if total > 0 else float('nan')
         row = {
             'basin': basin_name,
             'RT': rt,
@@ -80,7 +83,8 @@ def main():
             'Clim_QC': clim_qc,
             'tot_rejected': tot_rejected,
             'Accepted': accepted,
-            '%rejected': pct_rejected,
+            '%rejected': pct_rej_all,
+            '%rejected_Satur+ClimQC': pct_rejected,
         }
         summary.append(row)
 

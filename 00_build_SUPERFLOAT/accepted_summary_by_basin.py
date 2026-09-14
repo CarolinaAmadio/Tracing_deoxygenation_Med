@@ -7,14 +7,14 @@ parser = argparse.ArgumentParser(
     description="Create a basin-level DRIFT_CODE summary from Floats_accepted.csv"
 )
 parser.add_argument(
-    "--input_csv",
+    "-i", "--input_csv",
     type=str,
     nargs="?",
     default="/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med/ONLINE/SUPERFLOAT/Floats_accepted.csv",
     help="Path to Floats_accepted.csv",
 )
 parser.add_argument(
-    "--output_csv",
+    "-o", "--output_csv",
     type=str,
     default="/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med/00_build_SUPERFLOAT/drift_summary_by_basin.csv",
     help="Path for the output summary CSV file",
