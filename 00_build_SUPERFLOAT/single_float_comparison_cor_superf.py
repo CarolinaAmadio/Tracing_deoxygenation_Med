@@ -18,7 +18,8 @@ WMO       =  "6901865"
 FILENAME  =  "SD6901865_125.nc"
 
 max_depth =  1000
-base_dir  =  "/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med/ONLINE"
+#base_dir  =  "/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med/ONLINE"
+base_dir="/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med_ISSUE_01/ONLINE/"
 #base_dir  = "/g100_scratch/usera07ogs/a07ogs00/V11C/ONLINE/"
 
 # --- build file paths
