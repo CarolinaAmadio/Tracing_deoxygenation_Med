@@ -1,5 +1,42 @@
 ### Oxygen drift-correction pipeline (`superfloat_oxygen.py`)
 
+```text
+ONLINE/SUPERFLOAT/
+├── file NetCDF
+└── Float_Index.txt
+
+00_build_SUPERFLOAT/oxy_diag/
+├── Floats_trend_by_wmo.csv
+├── Floats_accepted.csv
+├── Floats_rejected.csv
+├── DataMode_and_Saturation_rejection_doxy.csv
+├── float_stat_rejection.csv
+├── float_stat_accepted.csv
+└── PLOTS_DRIFT/
+    ├── *.png
+    └── PLOTS_DRIFT.pdf
+```
+
+Il `Launcher.sh` separa il dataset Superfloat dai prodotti diagnostici DOXY.
+`superfloat_oxygen.py` riceve due directory distinte:
+
+```bash
+python superfloat_oxygen.py \
+   -o "$OUTDIR" \
+   -O "$DOXY_DIAG_DIR"
+```
+
+con:
+
+```bash
+OUTDIR=${BASEDIR}/ONLINE/SUPERFLOAT
+DOXY_DIAG_DIR=${WORKDIR}/oxy_diag
+```
+
+`OUTDIR` contiene i file NetCDF del dataset Superfloat e `Float_Index.txt`.
+`DOXY_DIAG_DIR` contiene i report CSV, i grafici PNG, il PDF dei grafici e i
+summary per bacino.
+
 Quality control and drift correction of dissolved-oxygen (DOXY) BGC-Argo
 profiles are performed by
 `bit.sea/src/bitsea/Float/superfloat_oxygen.py`, called from `Launcher.sh`.
@@ -29,14 +66,14 @@ profiles are performed by
 |---|---|---|
 | `Floats_trend_by_wmo.csv` | one row per WMO | drift rate, estimators, `DRIFT_CODE` for the whole float |
 | `Floats_accepted.csv` | one row per accepted profile | basin, `DRIFT_CODE`, `TREND_per_YEAR`, applied correction, climatology offset |
-| `Floats_rejected.csv` | one row per rejected profile/float | `reject_reason` (`climatology_offset`, `drift_too_high`, `NoClimValue`) |
+| `Floats_rejected.csv` | one row per profile rejected by the climatology check | `reject_reason` (`climatology_offset`) |
 | `DataMode_and_Saturation_rejection_doxy.csv` | one row per rejected profile | upstream QC rejections (realtime status, missing data, saturation test) |
 
 **Basin-level summary scripts** (aggregate the per-profile reports above by
 Mediterranean sub-basin):
-- `accepted_summary_by_basin.py` → `drift_summary_by_basin.csv`: counts of
+- `accepted_summary_by_basin.py` → `float_stat_accepted.csv`: counts of
   profiles by `DRIFT_CODE`, mean/std of the applied drift, floats with the
   strongest positive/negative drift.
-- `rejection_summary_by_basin.py` → `rejection_summary_by_basin.csv`: counts
+- `rejection_summary_by_basin.py` → `float_stat_rejection.csv`: counts
   of rejected/accepted profiles by basin, split by rejection cause (`RT`,
-  `Saturation`, `PresNone`, `Clim_QC`, `Drift_too_high`, `NoClimValue`).
+   `Saturation`, `PresNone`, `climatology_offset`).
