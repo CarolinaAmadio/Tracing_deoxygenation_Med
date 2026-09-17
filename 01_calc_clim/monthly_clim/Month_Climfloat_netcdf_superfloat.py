@@ -32,6 +32,7 @@ args = argument()
 from bitsea.commons.utils import addsep
 import numpy as np
 import pandas as pd
+import os
 from bitsea.commons import timerequestors
 from bitsea.instruments import superfloat
 from bitsea.instruments import superfloat as bio_float
@@ -59,8 +60,7 @@ def plot_line_profiles(df, z_interp, namesub, varmod, mm):
 OUTDIR = addsep(args.outdir)
 varmod = args.variable
 
-TheMask = Mask.from_file(
-    '/g100_work/OGS_test2528/camadio/Neccton_hindcast_ALL_SIMULATIONS_archieve/Neccton_hindcast1999_2022/wrkdir/MASKS/meshmask.nc')
+TheMask = Mask.from_file(os.environ["MASKFILE"])
 z_interp = TheMask.zlevels
 
 if OGS.atl in OGS.Pred.basin_list:
@@ -75,6 +75,7 @@ for mm in MONTHS:
     CLIM = np.full((len(SUBS), len(z_interp)), np.nan, dtype=np.float32)
     STD = np.full((len(SUBS), len(z_interp)), np.nan, dtype=np.float32)
     SUB_COUNT = 0
+    valid_profiles = []
 
     TI = timerequestors.Clim_month(mm)
 
@@ -98,9 +99,11 @@ for mm in MONTHS:
 
         SERV_VAR = np.full((len(Profilelist), len(z_interp)), np.nan, dtype=np.float32)
         ICONT = 0
+        sub_profile_times = []
 
         for PROFILE in Profilelist:
             Pres, Profile, Qc = PROFILE.read(var=FLOATVARS[varmod])
+            sub_profile_times.append(pd.to_datetime(PROFILE.time).to_pydatetime())
             Profile_interp = np.interp(z_interp, Pres, Profile, left=np.nan, right=np.nan)
             SERV_VAR[ICONT, :] = Profile_interp
             ICONT += 1
@@ -112,19 +115,34 @@ for mm in MONTHS:
         serv_S = np.nanstd(SERV_VAR, axis=0)
         CLIM[SUB_COUNT, :] = serv_P
         STD[SUB_COUNT, :] = serv_S
+        valid_profiles.extend(sub_profile_times)
         SUB_COUNT += 1
 
     import netCDF4
 
-    outfile = OUTDIR + f'/{mm:02d}_Avg_superfloat_dataset_{varmod}.nc'
+    if valid_profiles:
+        year_min = min(dt.year for dt in valid_profiles)
+        month_min = min(dt.month for dt in valid_profiles)
+        year_max = max(dt.year for dt in valid_profiles)
+        month_max = max(dt.month for dt in valid_profiles)
+    else:
+        year_min = month_min = year_max = month_max = -1
+
+    outfile = OUTDIR + f'/{mm:02d}_Avg_{varmod}_superfloat.nc'
     ncOUT = netCDF4.Dataset(outfile, 'w')
     ncOUT.createDimension('nsub', len(SUBS))
     ncOUT.createDimension('nav_lev', len(z_interp))
     ncvar = ncOUT.createVariable(varmod, 'f', ('nsub', 'nav_lev'))
     ncvar[:] = CLIM
+    ncOUT.NPROFILES = len(valid_profiles)
+    ncOUT.NWMO = len(bio_float.get_wmo_list(Profilelist)) if 'Profilelist' in locals() else 0
+    ncOUT.YEAR_MIN = year_min
+    ncOUT.MONTH_MIN = month_min
+    ncOUT.YEAR_MAX = year_max
+    ncOUT.MONTH_MAX = month_max
     ncOUT.close()
 
-    outfile = OUTDIR + f'/{mm:02d}_Std_superfloat_dataset_{varmod}.nc'
+    outfile = OUTDIR + f'/{mm:02d}_Std_{varmod}_superfloat.nc'
     ncOUT = netCDF4.Dataset(outfile, 'w')
     ncOUT.createDimension('nsub', len(SUBS))
     ncOUT.createDimension('nav_lev', len(z_interp))
