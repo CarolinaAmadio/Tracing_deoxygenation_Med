@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import re
+import os
 from pathlib import Path
 from collections import defaultdict
 from bitsea.commons.mask import Mask
@@ -20,8 +21,7 @@ BASE_CORIOLIS = Path(args.coriolis_dir).expanduser().resolve()
 BASE_SUPERFLOAT = Path(args.superfloat_dir).expanduser().resolve()
 OUTDIR = Path(args.outdir).expanduser().resolve()
 OUTDIR.mkdir(parents=True, exist_ok=True)
-TheMask = Mask.from_file(
-        '/g100_work/OGS_test2528/camadio/Neccton_hindcast_ALL_SIMULATIONS_archieve/Neccton_hindcast1999_2022/wrkdir/MASKS/meshmask.nc')
+TheMask = Mask.from_file(os.environ["MASKFILE"])
 z_lev = TheMask.zlevels
 
 BASINS = [
@@ -35,8 +35,8 @@ MONTH_LABELS = [
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ]
 
-pattern_coriolis = re.compile(r"^(?P<month>\d{2})_Avg_(?P<var>.+)_coriolis_ogs$", re.IGNORECASE)
-pattern_superfloat = re.compile(r"^(?P<month>\d{2})_Avg_superfloat_dataset_(?P<var>.+)$", re.IGNORECASE)
+pattern_coriolis = re.compile(r"^(?P<month>\d{2})_Avg_(?P<var>.+)_coriolis$", re.IGNORECASE)
+pattern_superfloat = re.compile(r"^(?P<month>\d{2})_Avg_(?P<var>.+)_superfloat$", re.IGNORECASE)
 
 coriolis_files = defaultdict(dict)
 superfloat_files = defaultdict(dict)
@@ -117,7 +117,8 @@ for var in sorted(variables):
             continue
         for ax in axes.flat:
             ax.set_ylim(2000,0)
-            ax.set_xlim(160,260)
+            if var == "O2o":
+                ax.set_xlim(160,260)
         handles = [
             plt.Line2D([0], [0], color="k", lw=1.5, label="Coriolis"),
             plt.Line2D([0], [0], color="red", lw=1.5, ls="--", label="Superfloat"),
