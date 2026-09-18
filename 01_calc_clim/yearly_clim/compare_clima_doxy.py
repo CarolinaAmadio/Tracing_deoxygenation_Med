@@ -73,7 +73,7 @@ for sub in OGS.Pred.basin_list:
     if 'atl' in sub.name: continue
     SUBLIST.append(sub)
 
-HAS_INSITU_CLIMATOLOGY = VAR not in {"votemper", "vosaline","PAR"}
+HAS_INSITU_CLIMATOLOGY = VAR not in {"votemper", "vosaline","PAR","POC","CDOM","Ed_490"}
 if HAS_INSITU_CLIMATOLOGY:
     _emodnet = get_climatology(VAR, SUBLIST, LayerList, basin_expand=True, QC=True)
 os.makedirs(OUTDIR , exist_ok=True)

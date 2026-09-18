@@ -2,7 +2,7 @@
 
 #SBATCH --job-name=YRclim
 #SBATCH -N1 -n 1
-#SBATCH --time=06:30:00
+#SBATCH --time=01:30:00
 ##SBATCH --mem=300gb
 #SBATCH --account=OGS_test2528
 ##SBATCH --partition=g100_meteo_prod
@@ -32,10 +32,11 @@ mkdir -p "$OUT" "$OUT/CLIMA_FLOAT" "$OUT/SUPERFLOAT" "$OUT/CORIOLIS"
 
 #CDOM  and PH_IN_SITU_TOTAL --> only in CORIOLIS only RealTime
 
-#for VARNAME in N3n P_l vosaline votemper PAR pH CDOM BBP700 DOWN_IRRADIANCE490 DOWNWELLING_PAR O2o; do
+#for VARNAME in N3n P_l vosaline votemper PAR pH POC CDOM Ed_490 DOWNWELLING_PAR O2o; do
 
 
-for VARNAME in CDOM BBP700 DOWN_IRRADIANCE490 O2o; do
+#for VARNAME in POC CDOM Ed_490 O2o; do
+for VARNAME in O2o; do
     my_prex_or_die "python Yr_Climfloat_netcdf_superfloat.py -o $OUT/SUPERFLOAT -v $VARNAME"
     my_prex_or_die "python Yr_Climfloat_netcdf_Coriolis.py -o $OUT/CORIOLIS -v $VARNAME"
     my_prex_or_die "python compare_clima_doxy.py -i $OUT -o $OUT/CLIMA_FLOAT -v $VARNAME"

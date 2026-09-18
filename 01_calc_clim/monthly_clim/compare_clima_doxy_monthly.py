@@ -128,7 +128,7 @@ def main():
             continue
         SUBLIST.append(sub)
 
-    HAS_INSITU_CLIMATOLOGY = VAR not in {"votemper", "vosaline"}
+    HAS_INSITU_CLIMATOLOGY = VAR not in {"votemper", "vosaline","PAR","POC","CDOM","Ed_490"}
     if HAS_INSITU_CLIMATOLOGY:
         _emodnet = get_climatology(VAR, SUBLIST, LayerList, basin_expand=True, QC=True)
     emodnet_metadata = get_emodnet_metadata(VAR, SUBLIST, LayerList, HAS_INSITU_CLIMATOLOGY)

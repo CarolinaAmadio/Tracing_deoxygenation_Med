@@ -43,8 +43,36 @@ from bitsea.commons.mask import Mask
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 import xarray as xr
-import sys 
-sys.exit()
+
+
+LOCAL_FLOATVARS = {
+    'O2o': 'DOXY',
+    'N3n': 'NITRATE',
+    'P_l': 'CHLA',
+    'P_i': 'CHLA',
+    'Chla': 'CHLA',
+    'vosaline': 'PSAL',
+    'votemper': 'TEMP',
+    'PAR': 'DOWNWELLING_PAR',
+    'POC': 'BBP700',
+    'P_c': 'BBP700',
+    'Ed_490': 'DOWN_IRRADIANCE490',
+    'CDOM': 'CDOM',
+    'BBP532': 'BBP532',
+    'pH': 'PH_IN_SITU_TOTAL',
+}
+
+
+def resolve_floatvar(name):
+  try:
+    return FLOATVARS[name]
+  except KeyError:
+    if name in LOCAL_FLOATVARS:
+      return LOCAL_FLOATVARS[name]
+    raise KeyError(
+      f"Unknown variable '{name}'. Add it to bitsea.instruments.var_conversions.FLOATVARS "
+      f"or to LOCAL_FLOATVARS in {os.path.basename(__file__)}."
+    )
 
 
 SEASON_COLORS = {
@@ -115,15 +143,16 @@ TI=timerequestors.TimeInterval(starttime='19500101',endtime='20280101',dateforma
 
 for isub_index, ISUB in enumerate(SUBS):
     print('_____________ ' + str(ISUB) + ' _____________')
-    Profilelist = bio_float.FloatSelector(FLOATVARS[varmod], TI, ISUB)
+    floatvar = resolve_floatvar(varmod)
+    Profilelist = bio_float.FloatSelector(floatvar, TI, ISUB)
     if ISUB.name == "ion1":
       isub = ComposedBasin('ion4', [OGS.swm2, OGS.ion2, OGS.tyr2], 'Neighbors of ion1')
-      Profilelist = bio_float.FloatSelector(FLOATVARS[varmod], TI, isub)
+      Profilelist = bio_float.FloatSelector(floatvar, TI, isub)
     elif ISUB.name == "tyr1":
       isub = ComposedBasin('supertyr', [OGS.tyr2, OGS.tyr1], 'tyr1and2')
-      Profilelist = bio_float.FloatSelector(FLOATVARS[varmod], TI, isub)
+      Profilelist = bio_float.FloatSelector(floatvar, TI, isub)
     else:
-      Profilelist = bio_float.FloatSelector(FLOATVARS[varmod], TI, ISUB)
+      Profilelist = bio_float.FloatSelector(floatvar, TI, ISUB)
 
     if not Profilelist:
       continue 
@@ -157,7 +186,7 @@ for isub_index, ISUB in enumerate(SUBS):
 
     df = pd.DataFrame(SERV_VAR).T
     namesub = ISUB.name
-    plot_line_profiles(df, z_interp, namesub, FLOATVARS[varmod], profile_months)
+    plot_line_profiles(df, z_interp, namesub, floatvar, profile_months)
     serv_P = np.nanmean(SERV_VAR, axis=0)
     serv_S = np.nanstd(SERV_VAR, axis=0)
     CLIM[isub_index, :] = serv_P
