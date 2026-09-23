@@ -46,7 +46,7 @@ ONLINE/
 *CANYON_MED_QC*
 ONLINE/
 SUPERFLOAT/
-
+static-data/
 
 # Python cache
 __pycache__/
