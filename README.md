@@ -7,7 +7,7 @@ Repository for tracing deoxygenation processes in the Mediterranean Sea.
 - `00_build_SUPERFLOAT/`
 - `01_calc_clim/`
 - `02_analyze_clim/`
-- `03_calc_canyon/`
+- `03_calculate_NN_datasets/`
 - `04_doxy_vs_bathy`
 - `05_plot_multi_prod_timeseries/`
 - `utils/`
@@ -23,7 +23,7 @@ The repository follows a sequential workflow:
         ↓
 02_analyze_clim
         ↓
-03_calc_canyon
+03_calculate_NN_datasets
         ↓
 04_doxy_vs_bathy
         ↓
