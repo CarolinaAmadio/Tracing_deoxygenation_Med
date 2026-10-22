@@ -32,7 +32,7 @@ def argument():
     )
     parser.add_argument(
         '--variable', '-v',
-        default='O2o',
+        required=True,
         help='Float variable name (default: O2o).'
     )
     return parser.parse_args()
@@ -41,6 +41,19 @@ def argument():
 args = argument()
 OUTDIR = args.outdir
 os.makedirs(OUTDIR, exist_ok=True)
+VARMOD = args.variable
+
+UNITS = {
+    "O2o": r"$mmol\,m^{-3}$",
+    "N3n": r"$mmol\,m^{-3}$",
+    "P_l": r"$mg\,m^{-3}$",
+    "CHLA": r"$mg\,m^{-3}$",
+    "PAR": r"$\mu E\,m^{-2}\,s^{-1}$",
+    "pH": "-",
+}
+VAR_UNITS = UNITS.get(VARMOD, VARMOD)
+CONVERT_CORIOLIS = VARMOD in {"O2o", "N3n"}
+USE_DENSITY_RHO = VARMOD == "O2o"
 
 MASKFILE = (
     "/g100_work/OGS_test2528/camadio/Neccton_hindcast_ALL_SIMULATIONS_archieve/"
@@ -58,23 +71,20 @@ TI = timerequestors.TimeInterval(
     dateformat='%Y%m%d',
 )
 
-COLUMNS = [
-    'wmo', 'Cycle', 'DRIFT_CODE', 'offset', 'time',
-    'value_at600m', 'value_at_rho_gsw', 'depth_at_rho_gsw',
-    'value_at_maxsal', 'depth_at_maxsal',
-    'value_at_maxsal_liw_50m', 'depth_at_maxsal_liw_50m'
-]
+COLUMNS = ['wmo', 'Cycle', 'time', 'value_at600m','value_at_rho_gsw', 'depth_at_rho_gsw','value_at_maxsal', 'depth_at_maxsal', 'value_at_maxsal_liw_50m', 'depth_at_maxsal_liw_50m' ]
+if VARMOD == 'O2o':
+    COLUMNS += [ 'DRIFT_CODE', 'offset']
 
 LIW_DEPTH_300_1000M = True
 
 
 def get_density_600m(NAME_BASIN):
     df = pd.read_csv(
-        "/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med/02_analyze_clim/density_600m.csv",
+        "/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med_ISSUE_01/02_analyze_clim/static/density_600m.csv",
         index_col=0,
     )
     dfstd = pd.read_csv(
-        "/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med/02_analyze_clim/density_std_600m.csv",
+        "/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med_ISSUE_01/02_analyze_clim/static/density_std_600m.csv",
         index_col=0,
     )
     try:
@@ -96,16 +106,22 @@ def read_temp_psal(p):
     return PresT, Temp, QcT, Pres, Sali, QcS
 
 
-def convert_oxygen(p, doxypres, doxyprofile):
-    if doxypres.size == 0:
-        return doxyprofile
+def convert_to_mmolm3(p, varpres, varprofile):
+    if varpres.size == 0:
+        return varprofile
     PresT, temp, _, Pres, sali, _ = read_temp_psal(p)
     if len(temp) != len(sali):
         temp = np.interp(Pres, PresT, temp)
     SA = gsw.SA_from_SP(sali, Pres, p.lon, p.lat)
     density = gsw.rho(SA, gsw.CT_from_t(SA, temp, Pres), Pres)
-    density_on_zdoxy = np.interp(doxypres, Pres, density)
-    return doxyprofile * density_on_zdoxy / 1000.0
+    density_on_zvar = np.interp(varpres, Pres, density)
+    return varprofile * density_on_zvar / 1000.0
+
+
+def convert_profile(p, pres, profile):
+    if VARMOD in {"O2o", "N3n"}:
+        return convert_to_mmolm3(p, pres, profile)
+    return profile
 
 
 def get_rho_layer(mask_rho, profile, pres, density_interp, rho_600m_per_sub, lat):
@@ -179,18 +195,19 @@ def collect_data_from_profiles(Profilelist, DOXY_convert=False):
     for p in Profilelist:
         pres, profile, qc = p.read(FLOATVARS[args.variable])
         if DOXY_convert:
-            profile = convert_oxygen(p, pres, profile)
+            profile = convert_profile(p, pres, profile)
 
         if len(profile) < 5 or len(pres) < 5 or pres.max() < 600:
             continue
 
-        with xr.open_dataset(p._my_float.filename) as ds:
-            doxy_qc = ds.get("DOXY_QC")
-            offset = np.nan
-            drift_code = np.nan
-            if doxy_qc is not None:
-                offset = doxy_qc.attrs.get("offset", np.nan)
-                drift_code = doxy_qc.attrs.get("drift_code", np.nan)
+        offset = np.nan
+        drift_code = np.nan
+        if VARMOD == 'O2o':
+            with xr.open_dataset(p._my_float.filename) as ds:
+                doxy_qc = ds.get("DOXY_QC")
+                if doxy_qc is not None:
+                    offset = doxy_qc.attrs.get("offset", np.nan)
+                    drift_code = doxy_qc.attrs.get("drift_code", np.nan)
 
         mask = (pres >= 550) & (pres <= 650)
         value_at600m = profile[mask].mean() if np.any(mask) else np.nan
@@ -244,8 +261,8 @@ def collect_data_from_profiles(Profilelist, DOXY_convert=False):
 
 for ISUB in SUBS:
     print(ISUB.name)
-    _super_Profilelist = superfloat.FloatSelector(FLOATVARS[args.variable], TI, ISUB)
-    df_super = collect_data_from_profiles(_super_Profilelist, DOXY_convert=False)
+    _super_Profilelist = superfloat.FloatSelector(FLOATVARS[VARMOD], TI, ISUB)
+    df_super = collect_data_from_profiles(_super_Profilelist, DOXY_convert=CONVERT_CORIOLIS)
 
     if df_super.empty:
         print(f"Skipping {ISUB.name}: df_super.empty={df_super.empty}")
@@ -262,11 +279,13 @@ for ISUB in SUBS:
     intercept_rho = np.nan
     slope_maxsal_liw = np.nan
     intercept_maxsal_liw = np.nan
-    mask_600 = (
-        df_super['value_at600m'].notna() &
-        df_super['depth_at_maxsal_liw_50m'].notna() &
-        (df_super['depth_at_maxsal_liw_50m'] <= 600.0)
-    ).fillna(False)
+    mask_600 = df_super['value_at600m'].notna().fillna(False)
+    if 'depth_at_maxsal_liw_50m' in df_super.columns:
+        mask_600 = (
+            mask_600 &
+            df_super['depth_at_maxsal_liw_50m'].notna() &
+            (df_super['depth_at_maxsal_liw_50m'] <= 600.0)
+        ).fillna(False)
     if mask_600.sum() >= 2:
         slope, intercept = np.polyfit(
             df_super.loc[mask_600, 'time_years'],
@@ -275,32 +294,36 @@ for ISUB in SUBS:
         )
         df_super['trend_600m'] = intercept + slope * df_super['time_years']
 
-    rho_filter = (
-        df_super['depth_at_rho_gsw'] >= df_super['depth_at_maxsal_liw_50m']
-    ).fillna(False)
-    if df_super.loc[rho_filter, 'value_at_rho_gsw'].notna().sum() >= 2:
-        mask_rho = rho_filter & df_super['value_at_rho_gsw'].notna()
-        slope_rho, intercept_rho = np.polyfit(
-            df_super.loc[mask_rho, 'time_years'],
-            df_super.loc[mask_rho, 'value_at_rho_gsw'],
-            1
-        )
-        df_super.loc[mask_rho, 'trend_rho'] = intercept_rho + slope_rho * df_super.loc[mask_rho, 'time_years']
+    if USE_DENSITY_RHO and 'depth_at_maxsal_liw_50m' in df_super.columns:
+        rho_filter = (
+            df_super['depth_at_rho_gsw'] >= df_super['depth_at_maxsal_liw_50m']
+        ).fillna(False)
+        if df_super.loc[rho_filter, 'value_at_rho_gsw'].notna().sum() >= 2:
+            mask_rho = rho_filter & df_super['value_at_rho_gsw'].notna()
+            slope_rho, intercept_rho = np.polyfit(
+                df_super.loc[mask_rho, 'time_years'],
+                df_super.loc[mask_rho, 'value_at_rho_gsw'],
+                1
+            )
+            df_super.loc[mask_rho, 'trend_rho'] = intercept_rho + slope_rho * df_super.loc[mask_rho, 'time_years']
 
-    maxsal_liw_mask = df_super['value_at_maxsal_liw_50m'].notna()
-    if maxsal_liw_mask.sum() >= 2:
-        slope_maxsal_liw, intercept_maxsal_liw = np.polyfit(
-            df_super.loc[maxsal_liw_mask, 'time_years'],
-            df_super.loc[maxsal_liw_mask, 'value_at_maxsal_liw_50m'],
-            1
-        )
-        df_super.loc[maxsal_liw_mask, 'trend_maxsal_liw'] = (
-            intercept_maxsal_liw + slope_maxsal_liw * df_super.loc[maxsal_liw_mask, 'time_years']
-        )
+    if VARMOD == 'O2o':
+        maxsal_liw_mask = df_super['value_at_maxsal_liw_50m'].notna()
+        if maxsal_liw_mask.sum() >= 2:
+            slope_maxsal_liw, intercept_maxsal_liw = np.polyfit(
+                df_super.loc[maxsal_liw_mask, 'time_years'],
+                df_super.loc[maxsal_liw_mask, 'value_at_maxsal_liw_50m'],
+                1
+            )
+            df_super.loc[maxsal_liw_mask, 'trend_maxsal_liw'] = (
+                intercept_maxsal_liw + slope_maxsal_liw * df_super.loc[maxsal_liw_mask, 'time_years']
+            )
 
     df_super.to_csv(os.path.join(OUTDIR, f'{ISUB.name}_superfloat_trend.csv'), index=False)
 
-    fig, axs = plt.subplots(1, 4, figsize=(22, 6), sharex=True)
+    n_panels = 4 if VARMOD == 'O2o' else (2 if USE_DENSITY_RHO else 1)
+    fig, axs = plt.subplots(1, n_panels, figsize=(6 * n_panels, 6), sharex=True)
+    axs = np.atleast_1d(axs)
 
     ax_left = axs[0]
     ax_left.plot(
@@ -316,82 +339,87 @@ for ISUB in SUBS:
             label=rf'trend {slope:.4f}'
         )
     ax_left.set_title(rf'{ISUB.name} Superfloat — 600m trend {slope:.4f}')
-    ax_left.set_ylabel('Oxygen (mmol m^-3)')
+    ax_left.set_ylabel(f'{VARMOD} ({VAR_UNITS})')
     ax_left.grid(True)
     ax_left.legend(loc='best')
 
-    rho_filter = (
-        df_super['depth_at_rho_gsw'] >= df_super['depth_at_maxsal_liw_50m']
-    ).fillna(False)
-    ax_mid = axs[1]
-    ax_mid.plot(
-        df_super.loc[rho_filter, 'time'],
-        df_super.loc[rho_filter, 'value_at_rho_gsw'],
-        linestyle='None', marker='o', markersize=6,
-        markerfacecolor='gray', markeredgecolor='black',
-        alpha=0.9, label='value_at_rho_gsw (>= maxsal_liw_50m depth)'
-    )
-    if 'trend_rho' in df_super.columns:
+    if USE_DENSITY_RHO and 'depth_at_maxsal_liw_50m' in df_super.columns:
+        rho_filter = (
+            df_super['depth_at_rho_gsw'] >= df_super['depth_at_maxsal_liw_50m']
+        ).fillna(False)
+        ax_mid = axs[1]
         ax_mid.plot(
             df_super.loc[rho_filter, 'time'],
-            df_super.loc[rho_filter, 'trend_rho'],
-            color='black', linewidth=1.5,
-            label=rf'trend {slope_rho:.4f}'
+            df_super.loc[rho_filter, 'value_at_rho_gsw'],
+            linestyle='None', marker='o', markersize=6,
+            markerfacecolor='gray', markeredgecolor='black',
+            alpha=0.9, label='value_at_rho_gsw (>= maxsal_liw_50m depth)'
         )
-    ax_mid.set_title(rf'value_at_rho_gsw — trend {slope_rho:.4f}')
-    ax_mid.set_ylabel('Oxygen (mmol m^-3)')
-    ax_mid.grid(True)
-    ax_mid.legend(loc='best')
+        if 'trend_rho' in df_super.columns:
+            ax_mid.plot(
+                df_super.loc[rho_filter, 'time'],
+                df_super.loc[rho_filter, 'trend_rho'],
+                color='black', linewidth=1.5,
+                label=rf'trend {slope_rho:.4f}'
+            )
+        ax_mid.set_title(rf'value_at_rho_gsw — trend {slope_rho:.4f}')
+        ax_mid.set_ylabel(f'{VARMOD} ({VAR_UNITS})')
+        ax_mid.grid(True)
+        ax_mid.legend(loc='best')
 
-    ax_right = axs[2]
-    ax_right.plot(
-        df_super['time'], df_super['value_at_maxsal'],
-        linestyle='None', marker='D', markersize=6,
-        markerfacecolor='#fff0f5', markeredgecolor='black',
-        alpha=0.7, label='value_at_maxsal'
-    )
-    ax_right.plot(
-        df_super['time'], df_super['value_at_maxsal_liw_50m'],
-        linestyle='None', marker='D', markersize=6,
-        markerfacecolor='magenta', markeredgecolor='black',
-        alpha=0.9, label='maxsal_liw_50m'
-    )
-    if 'trend_maxsal_liw' in df_super.columns:
+    if VARMOD == 'O2o':
+        ax_right = axs[2]
         ax_right.plot(
-            df_super['time'], df_super['trend_maxsal_liw'],
-            color='black', linewidth=1.5,
-            label=rf'trend {slope_maxsal_liw:.4f}'
+            df_super['time'], df_super['value_at_maxsal'],
+            linestyle='None', marker='D', markersize=6,
+            markerfacecolor='#fff0f5', markeredgecolor='black',
+            alpha=0.7, label='value_at_maxsal'
         )
-    ax_right.set_title(
-        rf'maxsal plus maxsal_liw_50m — trend {slope_maxsal_liw:.4f}'
-    )
-    ax_right.set_ylabel('Oxygen (mmol m^-3)')
-    ax_right.grid(True)
-    ax_right.legend(loc='best')
+        ax_right.plot(
+            df_super['time'], df_super['value_at_maxsal_liw_50m'],
+            linestyle='None', marker='D', markersize=6,
+            markerfacecolor='magenta', markeredgecolor='black',
+            alpha=0.9, label='maxsal_liw_50m'
+        )
+        if 'trend_maxsal_liw' in df_super.columns:
+            ax_right.plot(
+                df_super['time'], df_super['trend_maxsal_liw'],
+                color='black', linewidth=1.5,
+                label=rf'trend {slope_maxsal_liw:.4f}'
+            )
+        ax_right.set_title(
+            rf'maxsal plus maxsal_liw_50m — trend {slope_maxsal_liw:.4f}'
+        )
+        ax_right.set_ylabel(f'{VARMOD} ({VAR_UNITS})')
+        ax_right.grid(True)
+        ax_right.legend(loc='best')
 
-    ax_depth = axs[3]
-    ax_depth.plot(
-        df_super['time'],
-        np.full(df_super['time'].shape, 600.0),
-        color='black', linestyle='--', linewidth=1.5,
-        label='depth reference 600 m'
-    )
-    ax_depth.plot(
-        df_super['time'], df_super['depth_at_rho_gsw'],
-        color='goldenrod', linestyle='--', linewidth=1.8,
-        label='depth_at_rho_gsw'
-    )
-    ax_depth.plot(
-        df_super['time'], df_super['depth_at_maxsal_liw_50m'],
-        color='purple', linestyle=':', linewidth=1.8,
-        label='depth_at_maxsal_liw_50m'
-    )
-    ax_depth.set_title('Depths: 600m / rho / maxsal_liw_50m')
-    ax_depth.set_ylabel('Depth (m)')
-    ax_depth.set_xlabel('Time')
-    ax_depth.invert_yaxis()
-    ax_depth.grid(True)
-    ax_depth.legend(loc='best')
+    if VARMOD == 'O2o':
+        ax_depth = axs[3]
+        ax_depth.plot(
+            df_super['time'],
+            np.full(df_super['time'].shape, 600.0),
+            color='black', linestyle='--', linewidth=1.5,
+            label='depth reference 600 m'
+        )
+        ax_depth.plot(
+            df_super['time'], df_super['depth_at_rho_gsw'],
+            color='goldenrod', linestyle='--', linewidth=1.8,
+            label='depth_at_rho_gsw'
+        )
+        ax_depth.plot(
+            df_super['time'], df_super['depth_at_maxsal_liw_50m'],
+            color='purple', linestyle=':', linewidth=1.8,
+            label='depth_at_maxsal_liw_50m'
+        )
+        ax_depth.set_title('Depths: 600m / rho / maxsal_liw_50m')
+        ax_depth.set_ylabel('Depth (m)')
+        ax_depth.set_xlabel('Time')
+        ax_depth.invert_yaxis()
+        ax_depth.grid(True)
+        ax_depth.legend(loc='best')
+    else:
+        axs[-1].set_xlabel('Time')
 
     for ax in axs:
         ax.tick_params(axis='x', rotation=45)

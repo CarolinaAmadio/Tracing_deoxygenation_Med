@@ -69,8 +69,8 @@ for ISUB in SUBS:
 COLUMNS=['wmo','Cycle','DRIFT_CODE','offset','time','value_at600m','value_at_rho_gsw','depth_at_rho_gsw']
 
 def get_density_600m(NAME_BASIN):
-    df = pd.read_csv("/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med/02_analyze_clim//density_600m.csv", index_col=0)
-    dfstd = pd.read_csv("/g100_scratch/userexternal/camadio0/Tracing_deoxygenation_Med/02_analyze_clim//density_std_600m.csv", index_col=0)
+    df = pd.read_csv("density_600m.csv", index_col=0)
+    dfstd = pd.read_csv("density_std_600m.csv", index_col=0)
     try:
         val  = df.loc[NAME_BASIN].values[0]
         std  = dfstd.loc[NAME_BASIN].values[0]
@@ -122,7 +122,7 @@ def get_rho_layer(mask_rho, profile, pres, density_interp, rho_600m_per_sub, lat
     return value_rho, depth_rho
 
 
-def collect_data_from_profiles(Profilelist, DOXY_convert=False):
+def collect_data_from_profiles(Profilelist, varmod, var_convert=False):
     rows = []
     for p in Profilelist:
         #if (int(p._my_float.wmo)) ==6903065:
@@ -131,20 +131,22 @@ def collect_data_from_profiles(Profilelist, DOXY_convert=False):
         
         # convert doxy in coriolis with sw
         pres, profile, qc = p.read(FLOATVARS[varmod])
-        if DOXY_convert:
-             profile  = convert_oxygen(p,pres, profile)
+        if varmod=='O2o' or varmod=='N3n': 
+           if var_convert:
+               profile  = convert_oxygen(p,pres, profile)
 
         if len (profile) <5: continue
         if len(pres)<5: continue
         if pres.max()< 600: continue
-        with xr.open_dataset(p._my_float.filename) as ds:
-            doxy_qc = ds.get("DOXY_QC")
-            if doxy_qc is None:
-                offset = np.nan
-                drift_code = np.nan
-            else:
-                offset = doxy_qc.attrs.get("offset", np.nan)
-                drift_code = doxy_qc.attrs.get("drift_code", np.nan)
+        if varmod=='O2o':
+            with xr.open_dataset(p._my_float.filename) as ds:
+                doxy_qc = ds.get("DOXY_QC")
+                if doxy_qc is None:
+                    offset = np.nan
+                    drift_code = np.nan
+                else:
+                    offset = doxy_qc.attrs.get("offset", np.nan)
+                    drift_code = doxy_qc.attrs.get("drift_code", np.nan)
 
         # media tra 550 e 650 m
         mask = (pres >= 550) & (pres <= 650)
@@ -199,16 +201,17 @@ def collect_data_from_profiles(Profilelist, DOXY_convert=False):
         df_local['time'] = pd.to_datetime(df_local['time'], format='%Y%m%d')
     return df_local
 
+
 for ISUB in SUBS:
     #if ISUB.name != 'alb': continue
     print('_____________ '+ str(ISUB)  +' _____________')
     _super_Profilelist = superfloat.FloatSelector(FLOATVARS[varmod],TI, ISUB)
     _cor_Profilelist    = bio_float.FloatSelector(FLOATVARS[varmod],TI, ISUB)
 
-    df_super = collect_data_from_profiles(_super_Profilelist, DOXY_convert=False)
+    df_super = collect_data_from_profiles(_super_Profilelist, varmod, var_convert=False)
 
     df_super = df_super.sort_values('time') 
-    df_cor = collect_data_from_profiles(_cor_Profilelist, DOXY_convert=True)
+    df_cor = collect_data_from_profiles(_cor_Profilelist, varmod, var_convert=True)
     df_cor = df_cor.sort_values('time')
 
     if df_super.empty or df_cor.empty:

@@ -55,7 +55,7 @@ Il file `Launcher.sh` esegue questi passaggi principali:
    - output: `hovmoeller.pdf` o `hovmoeller_<dataset>.pdf`
 
 6. `Calculate_density.py`
-   - calcola campi di densità medi a 600 m per sottobacino
+   - calcola campi di densità medi a 600 m per sottobacino a partire da output modello. fatto una volta sola 
    - salva:
      - `density_600m.csv`
      - `density_std_600m.csv`
