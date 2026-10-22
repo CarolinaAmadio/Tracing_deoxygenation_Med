@@ -151,7 +151,15 @@ if mapping["bgc"] is not None:
         f"*_{mapping['bgc']}_*timeseries_all_basins*{depth_tag}*_ppcon_ins_cmed.csv",
         recursive=True,
     ) or find_csv(
+        base / "BGC_ARGO",
+        f"*_{mapping['bgc']}_*timeseries_all_basins*{depth_tag}*_ppcon_ins_cmed.csv",
+        recursive=True,
+    ) or find_csv(
         base / "CANYON_MED",
+        f"*_{mapping['bgc']}_*timeseries_all_basins*{depth_tag}*.csv",
+        recursive=True,
+    ) or find_csv(
+        base / "BGC_ARGO",
         f"*_{mapping['bgc']}_*timeseries_all_basins*{depth_tag}*.csv",
         recursive=True,
     )
@@ -211,20 +219,20 @@ if not data:
 basins = [basin.name for basin in get_elementary_basins()]
 
 plt.style.use("default")
-default_palette =['cyan'] #["#5B8CC9", "#D47C4F", "#7CA982", "#9B6FBF", "#8C8C8C"]
+line_palette = ["#508f8c", "#6aa977", "#88c35f", "#a6da4a", "#c5d9b3"]
+point_palette = ["#FFC846", "#8c8c8c"]
 color_by_label = {
-    "V12C": "deeppink",
-    "QUID_V13C_DA_SAT": "yellow",
-    "V13C": "green",
-    "RA": "k",
-    "INTERIM": "k",
-    "MEDBGC_INS": "goldenrod",
+    "V13C": line_palette[2],
+    "RA": line_palette[0],
+    "INTERIM": line_palette[0],
+    "MEDBGC_INS": point_palette[1],
+    "BGC_ARGO": point_palette[0],
 }
 source_type_colors = {
-    "I": "red",  # "#1F1F1F",  # insitu
-    "C": "#7F7F7F",  # canyon_med
-    "P": "#B0B0B0",  # ppcon
-    None: color_by_label.get("BGC_ARGO", default_palette[0]),
+    "I": point_palette[0],
+    "C": point_palette[1],
+    "P": "#b0b0b0",
+    None: color_by_label.get("BGC_ARGO", line_palette[0]),
 }
 
 outdir = base / "plots" / f"{depth_tag}_{coast}"
@@ -233,10 +241,14 @@ outdir.mkdir(parents=True, exist_ok=True)
 ylabel = get_ylabel(var)
 for basin in basins:
     fig, ax = plt.subplots(figsize=(10, 5))
+    fig.patch.set_facecolor("white")
+    ax.set_facecolor("white")
+    ax.set_axisbelow(True)
 
     has_date = False
     for index, (label, df) in enumerate(data.items()):
-        color = color_by_label.get(label, default_palette[index % len(default_palette)])
+        color = color_by_label.get(label, line_palette[index % len(line_palette)])
+        point_color = point_palette[index % len(point_palette)]
         legend_label = label  
         if label in ["BGC_ARGO", "MEDBGC_INS"]:
             if "basin" not in df.columns:
@@ -251,24 +263,11 @@ for basin in basins:
                         dfg = dfb[dfb["source_type"] == source_type]
                         if dfg.empty:
                             continue
-                        if source_type == "I":
-                            marker = "."
-                            size = 15
-                            facecolor = "coral"
-                            #edgecolor = "k"
-                            zorder = 6
-                        elif source_type == "P":
-                            marker = "."
-                            size = 15
-                            facecolor = "b"
-                            edgecolor = None #"silver"
-                            zorder = 4
-                        else:  # canyon_med
-                            marker = "."
-                            size = 15
-                            facecolor = "dodgerblue"
-                            edgecolor = None
-                            zorder = 3
+                        marker = "."
+                        size = 15
+                        facecolor = source_type_colors.get(source_type, point_color)
+                        edgecolor = None
+                        zorder = 4 if source_type == "P" else 5 if source_type == "C" else 6
                         scatter_kwargs = {
                             "marker": marker,
                             "s": size,
@@ -278,26 +277,50 @@ for basin in basins:
                             "zorder": zorder,
                             "label": f"{legend_label} ({source_type})",
                         }
-                        if edgecolor is not None:
-                            scatter_kwargs["edgecolors"] = edgecolor
                         ax.scatter(
                             dfg["time"],
                             dfg[var],
                             **scatter_kwargs,
                         )
                 else:
-                    ax.scatter(
-                        dfb["time"],
-                        dfb[var],
-                        marker="+",
-                        s=15,
-                        #edgecolors="k",
-                        linewidths=0.7,
-                        color=color,
-                        alpha=0.6,
-                        zorder=3,
-                        label=legend_label,
-                    )
+                    if label == "BGC_ARGO":
+                        ax.scatter(
+                            dfb["time"],
+                            dfb[var],
+                            marker="o",
+                            s=70,
+                            facecolors=point_palette[1] ,
+                            edgecolors=point_palette[1],
+                            linewidths=0.8,
+                            alpha=0.9,
+                            zorder=4,
+                            label=legend_label,
+                        )
+                    elif label == "MEDBGC_INS":
+                        ax.scatter(
+                            dfb["time"],
+                            dfb[var],
+                            marker="o",
+                            s=70,
+                            edgecolors="k",
+                            color=point_palette[0],
+                            linewidths=1.8,
+                            alpha=0.95,
+                            zorder=5,
+                            label=legend_label,
+                        )
+                    else:
+                        ax.scatter(
+                            dfb["time"],
+                            dfb[var],
+                            marker="+",
+                            s=15,
+                            linewidths=0.7,
+                            color=point_color,
+                            alpha=0.6,
+                            zorder=3,
+                            label=legend_label,
+                        )
                 has_date = True
         else:
             if df.empty:
@@ -316,15 +339,26 @@ for basin in basins:
                 "alpha": 1,
                 "linestyle": "-",
                 "linewidth": 3.,
-                "zorder": 4,
+                "zorder": 0,
             }
-            if "quid" in label.lower() and "v13c" in label.lower():
+            is_v13c = "v13c" in label.lower()
+            if "quid" in label.lower() and is_v13c:
                 plot_kwargs = {
                     "color": color,
                     "alpha": 1.0,
                     "linestyle": ":",
-                    "linewidth": 3.,
+                    "linewidth": 4.,
                     "zorder": 7,
+                    "label": legend_label,
+                }
+
+            elif label == "V13C":
+                plot_kwargs = {
+                    "color": color,
+                    "alpha": 1.0,
+                    "linestyle": "-",
+                    "linewidth": 8,
+                    "zorder": 9,
                     "label": legend_label,
                 }
 
@@ -333,8 +367,8 @@ for basin in basins:
                     "color": color,
                     "alpha": 1.0,
                     "linestyle": "-",
-                    "linewidth": 3.,
-                    "zorder": 5,
+                    "linewidth": 8,
+                    "zorder": 1,
                     "label": legend_label,
                 }
 
@@ -359,6 +393,15 @@ for basin in basins:
                     "label": legend_label,
                 }
 
+            add_black_border = is_v13c or label in ["RA", "INTERIM"]
+            edge_plot_kwargs = {
+                "color": "black",
+                "alpha": 1,
+                "linestyle": plot_kwargs.get("linestyle", "-"),
+                "linewidth": plot_kwargs.get("linewidth", 3.) + (2 if add_black_border else 0),
+                "zorder": plot_kwargs.get("zorder", 1) - 1,
+            }
+
             if "date" in dff.columns:
                 dff = dff.sort_values("date")
                 ax.plot(dff["date"], dff[var], **edge_plot_kwargs)
@@ -368,18 +411,21 @@ for basin in basins:
                 ax.plot(dff["sub"], dff[var], **edge_plot_kwargs)
                 ax.plot(dff["sub"], dff[var], **plot_kwargs)
 
-    ax.set_title(f"{var} series for basin {basin}")
-    ax.set_xlabel("time")
-    ax.set_ylabel(ylabel)
-    ax.legend(frameon=True, fontsize="small", ncol=2)
-    ax.grid(True, linestyle=":", alpha=0.5)
+    text_color = "#595959"
+    ax.set_title(f"{var} series for basin {basin}", color=text_color, fontsize=14)
+    ax.set_xlabel("time", color=text_color, fontsize=14)
+    ax.set_ylabel(ylabel, color=text_color, fontsize=14)
+    ax.tick_params(colors=text_color, labelcolor=text_color, labelsize=14)
+    for spine in ax.spines.values():
+        spine.set_color(text_color)
+    ax.grid(True, color="#bbbbbb", linestyle=":", linewidth=0.75, alpha=0.6)
 
     if has_date:
         locator = AutoDateLocator()
-        formatter = DateFormatter("%Y-%m-%d")
+        formatter = DateFormatter("%Y-%m")
         ax.xaxis.set_major_locator(locator)
         ax.xaxis.set_major_formatter(formatter)
-        fig.autofmt_xdate(rotation=45, ha="right")
+        fig.autofmt_xdate(rotation=0, ha="center")
 
     fig.tight_layout()
 

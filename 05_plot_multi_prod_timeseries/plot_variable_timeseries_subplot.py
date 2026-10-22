@@ -126,7 +126,15 @@ def prepare_data(base: Path, user_var: str, min_depth: float, max_depth: float, 
             f"*_{mapping['bgc']}_*timeseries_all_basins*{depth_tag}*_ppcon_ins_cmed.csv",
             recursive=True,
         ) or find_csv(
+            base / "BGC_ARGO",
+            f"*_{mapping['bgc']}_*timeseries_all_basins*{depth_tag}*_ppcon_ins_cmed.csv",
+            recursive=True,
+        ) or find_csv(
             base / "CANYON_MED",
+            f"*_{mapping['bgc']}_*timeseries_all_basins*{depth_tag}*.csv",
+            recursive=True,
+        ) or find_csv(
+            base / "BGC_ARGO",
             f"*_{mapping['bgc']}_*timeseries_all_basins*{depth_tag}*.csv",
             recursive=True,
         )
