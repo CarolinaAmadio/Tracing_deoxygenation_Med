@@ -32,12 +32,12 @@ mkdir -p "$OUT" "$OUT/CLIMA_FLOAT" "$OUT/SUPERFLOAT" "$OUT/CORIOLIS" "$OUT/MONTH
 
 #CDOM  and PH_IN_SITU_TOTAL --> only in CORIOLIS only RealTime
 
-#for VARNAME in N3n P_l vosaline votemper PAR pH POC CDOM Ed_490 DOWNWELLING_PAR O2o; do
-for VARNAME in PAR; do
-    my_prex_or_die "python Month_Climfloat_netcdf_superfloat.py -o $OUT/SUPERFLOAT -v $VARNAME"
-    my_prex_or_die "python Month_Climfloat_netcdf_Coriolis.py -o $OUT/CORIOLIS -v $VARNAME"
-    my_prex_or_die "python compare_clima_doxy_monthly.py -i $OUT -o $OUT/CLIMA_FLOAT -v $VARNAME"
-    my_prex_or_die "python plot_all_months.py --coriolis-dir $OUT/CORIOLIS --superfloat-dir $OUT/SUPERFLOAT --outdir $OUT/MONTHLY_PROFILES --var $VARNAME"
+for VARNAME in N3n P_l vosaline votemper PAR pH POC CDOM Ed_490 DOWNWELLING_PAR O2o; do
+#for VARNAME in O2o; do
+    #my_prex_or_die "python Month_Climfloat_netcdf_superfloat.py -o $OUT/SUPERFLOAT -v $VARNAME"
+    #my_prex_or_die "python Month_Climfloat_netcdf_Coriolis.py -o $OUT/CORIOLIS -v $VARNAME"
+    #my_prex_or_die "python compare_clima_doxy_monthly.py -i $OUT -o $OUT/CLIMA_FLOAT -v $VARNAME"
+    my_prex_or_die "python plot_all_months.py --coriolis-dir $OUT/CORIOLIS --superfloat-dir $OUT/SUPERFLOAT --outdir $OUT/MONTHLY_PROFILES/$VARNAME --var $VARNAME"
     #my_prex_or_die "python clim_visualizer_html_pdf.py -i $OUT/CLIMA_FLOAT -v $VARNAME"
 done
 

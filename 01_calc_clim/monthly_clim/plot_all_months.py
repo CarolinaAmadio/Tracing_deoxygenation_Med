@@ -92,7 +92,7 @@ for var in sorted(variables):
                     profile = np.array(nc.variables[varname][basin_index, :]).squeeze()
                 if profile.ndim > 1:
                     profile = profile.ravel()
-                ax.plot(profile, z_lev, color="k", linestyle="-", linewidth=1.5, label="Coriolis")
+                #ax.plot(profile, z_lev, color="k", linestyle="-", linewidth=1.5, label="Coriolis")
                 plotted_any = True
             if sup_path is not None:
                 with Dataset(sup_path) as nc:
@@ -120,7 +120,7 @@ for var in sorted(variables):
             if var == "O2o":
                 ax.set_xlim(160,260)
         handles = [
-            plt.Line2D([0], [0], color="k", lw=1.5, label="Coriolis"),
+            #plt.Line2D([0], [0], color="k", lw=1.5, label="Coriolis"),
             plt.Line2D([0], [0], color="red", lw=1.5, ls="--", label="Superfloat"),
         ]
         fig.legend(handles=handles, loc="lower center", ncol=2, fontsize="small")
