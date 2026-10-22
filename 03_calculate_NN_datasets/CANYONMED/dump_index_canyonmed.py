@@ -63,10 +63,8 @@ if args.input_float_indexer is not None:
 
 if args.type=="canyonmed_float":
     VARLIST=['DOXY','NITRATE','CHLA', 'PSAL','TEMP','PH_IN_SITU_TOTAL', 'BBP700','BBP532', 'DOWNWELLING_PAR','CDOM','DOWN_IRRADIANCE380'       ,'DOWN_IRRADIANCE412'       ,'DOWN_IRRADIANCE490', 'PO4','DIC','SiOH4','AT']
-    ppcon_vars=['CHLA_PPCON', 'NITRATE_PPCON','BBP700_PPCON']
-    canyonmed_vars=['NO3_CANYONMED', 'PHOSPHATE_CANYONMED','DIC_CANYONMED','SiOH4_CANYONMED','AT_CANYONMED','PH_IN_SITU_TOTAL_CANYONMED' ]
+    canyonmed_vars=['NITRATE_CANYONMED', 'PO4_CANYONMED','DIC_CANYONMED','SiOH4_CANYONMED','AT_CANYONMED','PH_IN_SITU_TOTAL_CANYONMED' ]
     INSITUVAR= ['DOXY','PRES','PSAL','TEMP','BBP532', 'DOWNWELLING_PAR','CDOM','DOWN_IRRADIANCE380','DOWN_IRRADIANCE412'       ,'DOWN_IRRADIANCE490']
-    NNmethod0= '_PPCON'
     NNmethod = '_CANYONMED'
  
 import sys
@@ -101,14 +99,11 @@ def file_header_content(filename,VARLIST, avail_params=None):
 
     if avail_params is None:
         for var in VARLIST: 
-            var0  = var + NNmethod0 # ppcon  
-            varpp = var + NNmethod  # canyon
+            varpp = var + NNmethod  # canyon
 
             if var in ncIN.variables.keys():
                 s= s+" " + var   
             elif varpp in ncIN.variables.keys():
-                s= s+" " + var
-            elif var0 in ncIN.variables.keys():
                 s= s+" " + var
             else:
                 pass
@@ -124,119 +119,40 @@ def file_header_content(filename,VARLIST, avail_params=None):
     if avail_params is None:
         for var in VARLIST:
 
-            var0  = var + NNmethod0   # e.g. _PPCON
             varpp = var + NNmethod    # e.g. _CANYONMED
 
             has_insitu = var   in ncIN.variables
-            has_ppcon  = var0  in ncIN.variables
             has_canyon = varpp in ncIN.variables
 
-            if not has_insitu and not has_ppcon and not has_canyon: continue
+            if not has_insitu and not has_canyon: continue
 
-            # --------------------------------------------------
-            # 1) VARIABLES WITH TWO NN METHODS (e.g. NO3)
-            #    PPCON and CANYON must always appear together
-            # --------------------------------------------------
+            # CanyonMED-only logic
             if var in INSITUVAR:
                 if has_insitu:
                    s += 'I'
-                   LIST_ATTR.append(var+'_I')            
-            elif var in ["NITRATE"]:   # extend if needed
+                   LIST_ATTR.append(var+'_I')
+            elif var in ["NITRATE", "PH_IN_SITU_TOTAL", "CHLA", "BBP700"]:
 
-                # If only one NN exists → ERROR
-                if has_ppcon != has_canyon:
-                    s += 'X'
-                    csv_file = "nitrate_no_ppcon_or_canyonmed.csv"
-                    if os.path.exists(csv_file):
-                       df = pd.read_csv(csv_file)
-
-                    else:
-                       df = pd.DataFrame(columns=["filename"])
-                    df.loc[len(df)] = filename
-                    df = df.drop_duplicates()
-                    df.to_csv(csv_file, index=False)
-
-                # INSITU only
-                elif has_insitu and not has_ppcon and not has_canyon:
-                    s += "I"
-                    LIST_ATTR.append(var+'_I')
-                # Triple (INSITU + PPCON + CANYON)
-                elif has_insitu and has_ppcon and has_canyon:
-                    s += "T"
-                    LIST_ATTR.append(var+'_T')
-
-                # Derived only (PPCON + CANYON, no INSITU)
-                elif not has_insitu and has_ppcon and has_canyon:
-                    s += "D"
-                    LIST_ATTR.append(var+'_D')
-                else: 
-                    print('has_ppcon '   +str( has_ppcon))
-                    print('has_canyon: ' +str( has_canyon))
-                    print('has_insitu: ' +str( has_insitu))
-                    raise ValueError(f"check the NN reconstruction for {var}")
-
-            # --------------------------------------------------
-            # 2) VARIABLES WITH SINGLE NN (e.g. pH)
-            #    INSITU + CANYON logic
-            # --------------------------------------------------
-            elif var in ["PH_IN_SITU_TOTAL"]:
-
-                # INSITU only
-                if has_insitu and not has_canyon:
-                    s += "I"
-                    LIST_ATTR.append(var+'_I')
-
-                # Both INSITU and CANYON
-                elif has_insitu and has_canyon:
+                # Keep only CanyonMED when present; otherwise report missing
+                if has_insitu and has_canyon:
                     s += "B"
                     LIST_ATTR.append(var+'_B')
-
-                # CANYON only
                 elif not has_insitu and has_canyon:
                     s += "C"
                     LIST_ATTR.append(var+'_C')
-
-                else:
-                    raise ValueError(f"problems with  NN reconstruction for {var}")
-            # --------------------------------------------------
-            # 3) VARIABLES WITH PPCON ONLY (e.g. CHLA, BBP700)
-            #   ins + ppcon logica
-            # --------------------------------------------------
-            elif var in ["CHLA", "BBP700"]:
-
-                # INSITU only
-                if has_insitu and not has_ppcon:
+                elif has_insitu and not has_canyon:
                     s += "I"
                     LIST_ATTR.append(var+'_I')
-
-                # Both INSITU and PPCON
-                elif has_insitu and has_ppcon:
-                    s += "B"
-                    LIST_ATTR.append(var+'_B')
-
-                # PPCON only
-                elif not has_insitu and has_ppcon:
-                    s += "P"
-                    LIST_ATTR.append(var+'_P')
-
                 else:
-                    raise ValueError(f"iissue check the NN reconstruction for {var}")
+                    raise ValueError(f"check the CanyonMED reconstruction for {var}")
 
-            # --------------------------------------------------
-            # 4) VARIABLES WITH CANYON ONLY (PO4, DIC, AT, SiOH4)
-            # --------------------------------------------------
             elif var in ["PO4", "AT", "DIC", "SiOH4"]:
 
-                # Only possible case: CANYON only
                 if not has_insitu and has_canyon:
                     s += "C"
                     LIST_ATTR.append(var+'_C')
-                # If INSITU exists for these → error (unexpected)
                 elif has_insitu:
-                    raise ValueError(
-                        f"{var}: INSITU should not exist for this variable."
-                    )
-
+                    raise ValueError(f"{var}: INSITU should not exist for this variable.")
                 else:
                     pass
             else:
