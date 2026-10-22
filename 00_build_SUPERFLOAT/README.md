@@ -77,3 +77,38 @@ Mediterranean sub-basin):
 - `rejection_summary_by_basin.py` → `float_stat_rejection.csv`: counts
   of rejected/accepted profiles by basin, split by rejection cause (`RT`,
    `Saturation`, `PresNone`, `climatology_offset`).
+
+### Chlorophyll QC (`superfloat_chla.py`)
+
+`bit.sea/src/bitsea/Float/superfloat_chla.py` is called from `Launcher.sh` and
+receives the diagnostics directory like the oxygen script:
+
+```bash
+python superfloat_chla.py -s "$DATE_start" -e "$DATE_end" -o "$OUTDIR" -O "$CHLA_DIAG_DIR" -f
+```
+
+with `CHLA_DIAG_DIR=${WORKDIR}/chla_diag`.
+
+**Profile rejection** (the NetCDF file is not written):
+- fewer than 5 valid TEMP values (`insufficient_TEMP_data`);
+- Real-Time mode, i.e. status other than `A`/`D` (`unsupported_CHLA_status_<status>`);
+- fewer than 5 CHLA values (`insufficient_CHLA_data`) or inconsistent array
+  lengths (`inconsistent_CHLA_array_lengths`);
+- shallowest CHLA sample deeper than 200 m (`CHLA_only_below_200m`);
+- at least one CHLA value `> 7 mg/m³` (`CHLA_above_max_threshold`), controlled by
+  `CHLA_MAX_THRESHOLD` and applied to the Coriolis values before the shift.
+
+**Corrections on accepted profiles:**
+- the profile is shifted so that its mean in 400-600 m is 0 (`shift_from_coriolis`);
+- values `<= 0` after the shift are replaced by the background value
+  `0.005 mg/m³` (`replaced_values`).
+
+**Report** `chla_diag/Floats_chla_report.csv` (one row per processed profile):
+
+| Column | Content |
+|---|---|
+| `WMO`, `cycle`, `time`, `file_origin` | profile identification |
+| `outcome` | `accepted` / `rejected` |
+| `reason` | rejection reason (empty if accepted) |
+| `shift_from_coriolis` | applied shift (NaN if rejected) |
+| `background_value`, `replaced_values` | background value and number of values replaced |
