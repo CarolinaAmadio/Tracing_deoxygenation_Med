@@ -3,7 +3,7 @@
 #SBATCH --job-name=fix_qc
 #SBATCH -N1
 #SBATCH --ntasks-per-node=48
-#SBATCH --time=2:00:00
+#SBATCH --time=8:00:00
 #SBATCH --mem=300gb
 #SBATCH --account=OGS_test2528
 #SBATCH --partition=g100_usr_prod
@@ -50,8 +50,8 @@ mkdir -p "$OUTDIR" "$DOXY_DIAG_DIR" "$CHLA_DIAG_DIR"
 
 cd "${BASEDIR}/bit.sea/src/bitsea/Float/" || exit 1
 
-my_prex "python superfloat_chla.py -s $DATE_start -e $DATE_end -o $OUTDIR -O $CHLA_DIAG_DIR -f"
-exit 0
+#my_prex "python superfloat_chla.py -s $DATE_start -e $DATE_end -o $OUTDIR -O $CHLA_DIAG_DIR -f"
+#exit 0
 # to plot the oxy diagn : -f --make_plots to ingore rempve args 
 my_prex "python superfloat_oxygen.py -s $DATE_start -e $DATE_end -o $OUTDIR -O $DOXY_DIAG_DIR -f --make_plots -w 48"
 my_prex "python superfloat_nitrate.py -s $DATE_start -e $DATE_end -o $OUTDIR -f"
