@@ -11,6 +11,7 @@ def argument():
      - NetCDF files containing the vertical climatologies:
          - yr_Avg_<variable>.nc: mean values
          - yr_Std_<variable>.nc: standard deviations
+         - yr_Pct_<variable>.nc: median (MEDIAN) and percentiles P01, P05, P95, P99
     ''', formatter_class=argparse.RawTextHelpFormatter)
 
     parser.add_argument(   '--outdir','-o',
@@ -43,36 +44,6 @@ from bitsea.commons.mask import Mask
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 import xarray as xr
-
-
-LOCAL_FLOATVARS = {
-    'O2o': 'DOXY',
-    'N3n': 'NITRATE',
-    'P_l': 'CHLA',
-    'P_i': 'CHLA',
-    'Chla': 'CHLA',
-    'vosaline': 'PSAL',
-    'votemper': 'TEMP',
-    'PAR': 'DOWNWELLING_PAR',
-    'POC': 'BBP700',
-    'P_c': 'BBP700',
-    'Ed_490': 'DOWN_IRRADIANCE490',
-    'CDOM': 'CDOM',
-    'BBP532': 'BBP532',
-    'pH': 'PH_IN_SITU_TOTAL',
-}
-
-
-def resolve_floatvar(name):
-  try:
-    return FLOATVARS[name]
-  except KeyError:
-    if name in LOCAL_FLOATVARS:
-      return LOCAL_FLOATVARS[name]
-    raise KeyError(
-      f"Unknown variable '{name}'. Add it to bitsea.instruments.var_conversions.FLOATVARS "
-      f"or to LOCAL_FLOATVARS in {os.path.basename(__file__)}."
-    )
 
 
 SEASON_COLORS = {
@@ -131,6 +102,9 @@ else: pass
 SUBS    = OGS.Pred.basin_list[:]
 CLIM    = np.zeros((len(SUBS),  len(z_interp) ), np.float32)*np.nan
 STD     = np.zeros((len(SUBS),  len(z_interp) ), np.float32)*np.nan
+PCT_LIST = [1, 5, 95, 99]
+MEDIAN  = np.zeros((len(SUBS),  len(z_interp) ), np.float32)*np.nan
+PCT     = np.zeros((len(PCT_LIST), len(SUBS),  len(z_interp) ), np.float32)*np.nan
 NPROFILES = np.zeros(len(SUBS), dtype=np.int32)
 NWMO = np.zeros(len(SUBS), dtype=np.int32)
 YEAR_MIN = np.zeros(len(SUBS), dtype=np.int32)
@@ -143,16 +117,15 @@ TI=timerequestors.TimeInterval(starttime='19500101',endtime='20280101',dateforma
 
 for isub_index, ISUB in enumerate(SUBS):
     print('_____________ ' + str(ISUB) + ' _____________')
-    floatvar = resolve_floatvar(varmod)
-    Profilelist = bio_float.FloatSelector(floatvar, TI, ISUB)
+    Profilelist = bio_float.FloatSelector(FLOATVARS[varmod] , TI, ISUB)
     if ISUB.name == "ion1":
       isub = ComposedBasin('ion4', [OGS.swm2, OGS.ion2, OGS.tyr2], 'Neighbors of ion1')
-      Profilelist = bio_float.FloatSelector(floatvar, TI, isub)
+      Profilelist = bio_float.FloatSelector(FLOATVARS[varmod], TI, isub)
     elif ISUB.name == "tyr1":
       isub = ComposedBasin('supertyr', [OGS.tyr2, OGS.tyr1], 'tyr1and2')
-      Profilelist = bio_float.FloatSelector(floatvar, TI, isub)
+      Profilelist = bio_float.FloatSelector(FLOATVARS[varmod], TI, isub)
     else:
-      Profilelist = bio_float.FloatSelector(floatvar, TI, ISUB)
+      Profilelist = bio_float.FloatSelector(FLOATVARS[varmod], TI, ISUB)
 
     if not Profilelist:
       continue 
@@ -176,7 +149,7 @@ for isub_index, ISUB in enumerate(SUBS):
     ICONT = 0
     for PROFILE in Profilelist:
       profile_months.append(PROFILE.time.month)
-      Pres, Profile, Qc = PROFILE.read(var=FLOATVARS[varmod])
+      Pres, Profile, Qc = PROFILE.read(var=FLOATVARS[varmod], var_mod=varmod)
       Profile_interp = np.interp(z_interp, Pres, Profile, left=np.nan, right=np.nan)
       SERV_VAR[ICONT, :] = Profile_interp
       ICONT += 1
@@ -186,11 +159,13 @@ for isub_index, ISUB in enumerate(SUBS):
 
     df = pd.DataFrame(SERV_VAR).T
     namesub = ISUB.name
-    plot_line_profiles(df, z_interp, namesub, floatvar, profile_months)
+    plot_line_profiles(df, z_interp, namesub, FLOATVARS[varmod] , profile_months)
     serv_P = np.nanmean(SERV_VAR, axis=0)
     serv_S = np.nanstd(SERV_VAR, axis=0)
     CLIM[isub_index, :] = serv_P
     STD[isub_index, :] = serv_S
+    MEDIAN[isub_index, :] = np.nanmedian(SERV_VAR, axis=0)
+    PCT[:, isub_index, :] = np.nanpercentile(SERV_VAR, PCT_LIST, axis=0)
 
 #mean
 import netCDF4 
@@ -224,6 +199,20 @@ ncOUT.createDimension('nsub',len(SUBS) )
 ncOUT.createDimension('nav_lev',  len(z_interp) )
 ncvar=ncOUT.createVariable(varmod,'f',('nsub','nav_lev'))
 ncvar[:]=(STD)
+ncOUT.close()
+
+#median and percentiles
+outfile=OUTDIR + '/yr_Pct_'+varmod+'_superfloat.nc'
+ncOUT = netCDF4.Dataset( outfile,'w')
+ncOUT.createDimension('nsub',len(SUBS) )
+ncOUT.createDimension('nav_lev',  len(z_interp) )
+ncvar=ncOUT.createVariable('MEDIAN','f',('nsub','nav_lev'))
+ncvar.long_name = 'median of ' + varmod
+ncvar[:]=MEDIAN
+for ip, pct in enumerate(PCT_LIST):
+  ncvar=ncOUT.createVariable('P%02d' % pct,'f',('nsub','nav_lev'))
+  ncvar.long_name = '%d-th percentile of %s' % (pct, varmod)
+  ncvar[:]=PCT[ip]
 ncOUT.close()
 
 import shutil

@@ -158,6 +158,7 @@ for ISUB in SUBS:
 
     for PROFILE in Profilelist:
         Pres, Profile, Qc = PROFILE.read(var=FLOATVARS[varmod])
+        print(PROFILE.time, len(Pres), np.unique(Qc) if len(Qc) else Qc)
         if len(Pres) < 5:
             continue
         if varmod == 'O2o':

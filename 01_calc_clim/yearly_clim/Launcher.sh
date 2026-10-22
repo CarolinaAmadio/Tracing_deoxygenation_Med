@@ -29,19 +29,59 @@ OUT=${OUTDIR}/PLOTS
 
 mkdir -p "$OUT" "$OUT/CLIMA_FLOAT" "$OUT/SUPERFLOAT" "$OUT/CORIOLIS"
 
+# Variable availability by data product
+#
+# Variable              SAT  BGC-ARGO  EMODNET  PPCON  CANYONMED
+# --------------------------------------------------------------
+# O2o                           X        X
+# CHLA                   X      X        X       X
+# N3N                           X        X       X       X
+# POC                           X                X       X
+# N1p                                    X               X
+# DIC                                    X               X
+# N5s                                    X               X
+# ALK                                    X               X
+# pH                                     X               X
+# PAR                           X
+# vosaline                      X
+# votemper                      X
+# DOWNWELLING_PAR               X
+# Ed_490                        X
+#
+# Special cases:
+# CDOM, PH_IN_SITU_TOTAL: BGC-Argo profiles available only from
+# CORIOLIS in Real-Time mode.
+# NH4 only emodnet
+# https://docs.google.com/presentation/d/1tWnbnaO2rNb7gRKagPhm4MSdvIYfrdUSlJ5ro0UZ3fI/edit?slide=id.h7cec62ed0095a4c5_11_25#slide=id.h7cec62ed0095a4c5_11_25
 
-#CDOM  and PH_IN_SITU_TOTAL --> only in CORIOLIS only RealTime
-
-#for VARNAME in N3n P_l vosaline votemper PAR pH POC CDOM Ed_490 DOWNWELLING_PAR O2o; do
-
-
-#for VARNAME in POC CDOM Ed_490 O2o; do
-for VARNAME in O2o; do
+mkdir -p $OUT/SUPERFLOAT/
+for VARNAME in N3n P_l POC vosaline votemper PAR Ed_490 DOWNWELLING_PAR O2o; do
     my_prex_or_die "python Yr_Climfloat_netcdf_superfloat.py -o $OUT/SUPERFLOAT -v $VARNAME"
-    my_prex_or_die "python Yr_Climfloat_netcdf_Coriolis.py -o $OUT/CORIOLIS -v $VARNAME"
-    my_prex_or_die "python compare_clima_doxy.py -i $OUT -o $OUT/CLIMA_FLOAT -v $VARNAME"
-    my_prex_or_die "python clim_visualizer_html_pdf.py -i $OUT/CLIMA_FLOAT -v $VARNAME"
+    #my_prex_or_die "python compare_clima_doxy.py -i $OUT -o $OUT/CLIMA_FLOAT -v $VARNAME"
+    #my_prex_or_die "python clim_visualizer_html_pdf.py -i $OUT/CLIMA_FLOAT -v $VARNAME"
 done
+
+mkdir -p $OUT/PPCON/
+for VARNAME in N3n P_l POC; do # P_l POC; do
+    my_prex_or_die "python Yr_Climfloat_netcdf_ppcon.py -o $OUT/PPCON -v $VARNAME"
+done
+
+#exit 0
+
+#mkdir -p $OUT/CANYONMED/
+#for VARNAME in N1p DIC N5s ALK pH; do
+#for VARNAME in N3n; do
+#    my_prex_or_die "python Yr_Climfloat_netcdf_canyonmed.py -o $OUT/CANYONMED/ -v $VARNAME"
+#done
+
+#exit 0
+	
+mkdir -p $OUT/CLIMA_FLOAT_NEW/
+for VARNAME in P_l O2o POC; do
+    #my_prex_or_die "python compare_climatologies.py -i $OUT -o $OUT/CLIMA_FLOAT_NEW/ -v $VARNAME"
+    my_prex_or_die "python clim_visualizer_html_pdf.py -i $OUT/CLIMA_FLOAT_NEW/ -v $VARNAME"
+done
+
 
 exit 0
 
