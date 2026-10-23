@@ -50,7 +50,7 @@ mkdir -p "$OUTDIR" "$DOXY_DIAG_DIR" "$CHLA_DIAG_DIR"
 
 cd "${BASEDIR}/bit.sea/src/bitsea/Float/" || exit 1
 
-#my_prex "python superfloat_chla.py -s $DATE_start -e $DATE_end -o $OUTDIR -O $CHLA_DIAG_DIR -f"
+#my_prex "python superfloat_chla.py -s $DATE_start -e $DATE_end -o $OUTDIR -O $CHLA_DIAG_DIR -f -w 48"
 #exit 0
 # to plot the oxy diagn : -f --make_plots to ingore rempve args 
 my_prex "python superfloat_oxygen.py -s $DATE_start -e $DATE_end -o $OUTDIR -O $DOXY_DIAG_DIR -f --make_plots -w 48"
