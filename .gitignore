@@ -51,6 +51,7 @@ static-data/
 # Python cache
 __pycache__/
 *.pyc
+*__pycache__*
 
 # bitsea
 *bit.sea*
