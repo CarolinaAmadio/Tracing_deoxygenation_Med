@@ -84,10 +84,16 @@ Mediterranean sub-basin):
 receives the diagnostics directory like the oxygen script:
 
 ```bash
-python superfloat_chla.py -s "$DATE_start" -e "$DATE_end" -o "$OUTDIR" -O "$CHLA_DIAG_DIR" -f
+python superfloat_chla.py -s "$DATE_start" -e "$DATE_end" -o "$OUTDIR" -O "$CHLA_DIAG_DIR" -f -w 48
 ```
 
 with `CHLA_DIAG_DIR=${WORKDIR}/chla_diag`.
+
+**Parallelisation** (`-w/--workers`, default: all CPUs): one task per float (WMO),
+longest floats first. Each worker writes only the NetCDF files of its own float
+and returns the report rows to the main process, which is the only one writing
+`Floats_chla_report.csv`. A failure on a single profile is logged with
+`outcome=error` and does not stop the float.
 
 **Profile rejection** (the NetCDF file is not written):
 - fewer than 5 valid TEMP values (`insufficient_TEMP_data`);
