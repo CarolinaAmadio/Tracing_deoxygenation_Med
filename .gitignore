@@ -17,6 +17,8 @@ slurm*.err
 ONLINE/
 00_build_SUPERFLOAT/ONLINE/
 00_build_SUPERFLOAT/TEST_00_bitsea_to_test
+00_build_SUPERFLOAT/oxy_diag/
+00_build_SUPERFLOAT/utils
 
 #01_calc_clim
 01_calc_clim//*/
@@ -36,6 +38,7 @@ ONLINE/
 *nc
 *png
 *swp
+*pyc
 
 # SLURM folders
 *SLURM*
