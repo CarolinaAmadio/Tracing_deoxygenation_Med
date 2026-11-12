@@ -37,6 +37,10 @@ DOXY_DIAG_DIR=${WORKDIR}/oxy_diag
 `DOXY_DIAG_DIR` contiene i report CSV, i grafici PNG, il PDF dei grafici e i
 summary per bacino.
 
+I grafici diagnostici stagionali raggruppano i profili per mese: JFM
+(gennaio-marzo), AMJ (aprile-giugno), JAS (luglio-settembre) e OND
+(ottobre-dicembre).
+
 Quality control and drift correction of dissolved-oxygen (DOXY) BGC-Argo
 profiles are performed by
 `bit.sea/src/bitsea/Float/superfloat_oxygen.py`, called from `Launcher.sh`.
