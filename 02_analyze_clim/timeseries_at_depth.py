@@ -2,23 +2,25 @@ import argparse
 
 def argument():
     parser = argparse.ArgumentParser(description = '''
-    Compute tseries of oxy in Superfloat and Coriolis profiles 
+    Compute timeseries of oxy in Superfloat and Coriolis profiles 
     Mediterranean sub-basin. For every profile, extracts the oxygen
-concentration around 600 m and at the isopycnal corresponding to the mean
-basin density at 600 m.
+    concentration around 600 m and at the isopycnal corresponding to the mean
+    basin density at 600 m.
     ''', formatter_class=argparse.RawTextHelpFormatter)
 
     parser.add_argument(   '--outdir','-o',
                                 type = str,
                                 required = True,
-                                help = 'input dir validation tmp')
+                                help = 'output directory')
 
 
     parser.add_argument(   '--variable', '-v',
                                 type = str,
-                                default = None,
                                 required = True,
                                 help = '''model variable''')
+    parser.add_argument('--maskfile', required=True, help='Path to the mesh mask file')
+    parser.add_argument('--startdate', required=True, help='Start date in YYYYMMDD format')
+    parser.add_argument('--enddate', required=True, help='End date in YYYYMMDD format')
     return parser.parse_args()
 
 
@@ -43,14 +45,14 @@ from bitsea.basins.region import Region, Rectangle
 sys.path.append(os.path.abspath(".."))
 from utils.basins_CA_new_bitsea import cross_Med_basins
 
-OUTDIR     = "plots/"
+OUTDIR     = args.outdir
 os.makedirs(OUTDIR, exist_ok=True)
-varmod     = "O2o"#args.variable
+varmod     = args.variable
 plot_cols  = ['value_at600m', 'value_at_rho_gsw']
 
 
 # INIT
-TheMask=Mask.from_file("/g100_work/OGS_test2528/camadio/Neccton_hindcast_ALL_SIMULATIONS_archieve/Neccton_hindcast1999_2022/wrkdir/MASKS/meshmask.nc")
+TheMask=Mask.from_file(args.maskfile)
 z_interp= TheMask.zlevels
 
 if OGS.atl in OGS.Pred.basin_list:
@@ -61,7 +63,11 @@ SUBS    = OGS.Pred.basin_list[:]
 print('_________________start__________________')
 
 SUB_COUNT = 0
-TI=timerequestors.TimeInterval( starttime='19500101',endtime='20280101',dateformat='%Y%m%d',)
+TI=timerequestors.TimeInterval(
+    starttime=args.startdate,
+    endtime=args.enddate,
+    dateformat='%Y%m%d',
+)
 list_basin =[]
 for ISUB in SUBS:
     list_basin.append(ISUB.name)
@@ -138,6 +144,8 @@ def collect_data_from_profiles(Profilelist, varmod, var_convert=False):
         if len (profile) <5: continue
         if len(pres)<5: continue
         if pres.max()< 600: continue
+        offset = np.nan
+        drift_code = np.nan
         if varmod=='O2o':
             with xr.open_dataset(p._my_float.filename) as ds:
                 doxy_qc = ds.get("DOXY_QC")
